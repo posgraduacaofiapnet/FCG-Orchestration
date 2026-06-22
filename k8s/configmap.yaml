@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fcg-config
+data:
+  RabbitMq__Host: rabbitmq
+  RabbitMq__Username: guest
+  RabbitMq__OrderPlacedQueue: payments-order-placed
+  RabbitMq__PaymentProcessedQueue: catalog-payment-processed
+  RabbitMq__UserCreatedQueue: notifications-user-created
+  Jwt__Issuer: UsersAPI
+  Jwt__Audience: FCG
+  Payments__ForceRejected: "false"
