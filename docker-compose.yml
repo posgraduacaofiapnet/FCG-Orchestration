@@ -27,7 +27,7 @@ services:
 
   users-api:
     build:
-      context: .
+      context: ../FCG-UsersAPI
       dockerfile: services/UsersAPI/Dockerfile
     container_name: fcg_users_api
     environment:
@@ -50,7 +50,7 @@ services:
 
   catalog-api:
     build:
-      context: .
+      context: ../FCG-CatalogAPI
       dockerfile: services/CatalogAPI/Dockerfile
     container_name: fcg_catalog_api
     environment:
@@ -71,7 +71,7 @@ services:
 
   payments-api:
     build:
-      context: .
+      context: ../FCG-PaymentsAPI
       dockerfile: services/PaymentsAPI/Dockerfile
     container_name: fcg_payments_api
     environment:
@@ -90,7 +90,7 @@ services:
 
   notifications-api:
     build:
-      context: .
+      context: ../FCG-NotificationsAPI
       dockerfile: services/NotificationsAPI/Dockerfile
     container_name: fcg_notifications_api
     environment:
