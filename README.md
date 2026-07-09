@@ -97,34 +97,61 @@ GET http://localhost:5102/api/library/{userId}
 
 ## Kubernetes Local
 
-Construa as imagens antes de aplicar os manifests:
+Cada microsservico possui sua propria pasta `/k8s/` com os manifests de Deployment, Service, ConfigMap e Secret.
+
+### 1. Aplique a infraestrutura (RabbitMQ + SQL Server)
 
 ```bash
-docker build -t fcg-users-api:latest -f services/UsersAPI/Dockerfile .
-docker build -t fcg-catalog-api:latest -f services/CatalogAPI/Dockerfile .
-docker build -t fcg-payments-api:latest -f services/PaymentsAPI/Dockerfile .
-docker build -t fcg-notifications-api:latest -f services/NotificationsAPI/Dockerfile .
+cd FCG-Orchestration/k8s
+kubectl apply -f .
 ```
 
-Aplique os manifests:
+### 2. Aplique cada microsservico
 
 ```bash
-kubectl apply -f k8s
+cd FCG-UsersAPI/k8s
+kubectl apply -f .
+
+cd FCG-CatalogAPI/k8s
+kubectl apply -f .
+
+cd FCG-PaymentsAPI/k8s
+kubectl apply -f .
+
+cd FCG-NotificationsAPI/k8s
+kubectl apply -f .
+```
+
+> **Importante:** O comando `kubectl apply -f .` deve ser executado de dentro da pasta `/k8s/` de cada repositorio, pois o diretorio raiz contem o `docker-compose.yml` que nao e um manifest Kubernetes valido.
+
+### 3. Verificar os Pods
+
+```bash
 kubectl get pods
+```
+
+Todos os Pods devem estar com status `Running`. Para mais detalhes:
+
+```bash
+kubectl get pods -o wide
 kubectl get services
 ```
 
-Para testar de fora do cluster:
+### 4. Acessar os servicos (port-forward)
 
 ```bash
 kubectl port-forward service/users-api 5101:80
 kubectl port-forward service/catalog-api 5102:80
+kubectl port-forward service/payments-api 5103:80
+kubectl port-forward service/notifications-api 5104:80
 ```
 
 ## Evidencias para o Video
 
-- Mostrar `docker compose up --build`.
+- Mostrar `docker compose up --build` e todos os containers subindo.
 - Mostrar Swagger das APIs.
-- Executar cadastro e observar logs do NotificationsAPI.
-- Executar compra e observar logs do PaymentsAPI e NotificationsAPI.
-- Mostrar `kubectl apply -f k8s` e `kubectl get pods`.
+- Executar cadastro e observar logs do NotificationsAPI (`UserCreatedEvent`).
+- Executar compra e observar logs do PaymentsAPI (`OrderPlacedEvent`) e NotificationsAPI (`PaymentProcessedEvent`).
+- Demonstrar o deploy no cluster Kubernetes local:
+  - Executar `kubectl apply -f .` dentro de cada pasta `/k8s/`.
+  - Executar `kubectl get pods` e mostrar todos os Pods com status `Running`.

@@ -23,7 +23,7 @@ spec:
             - name: MSSQL_SA_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: fcg-secrets
+                  name: sqlserver-secrets
                   key: MSSQL_SA_PASSWORD
 ---
 apiVersion: v1
