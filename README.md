@@ -29,6 +29,30 @@ Este repositorio centraliza a execucao local e Kubernetes dos quatro microsservi
 - Docker Compose
 - Kubernetes
 
+## Pre-requisitos
+
+O `docker-compose.yml` deste repositorio **nao** contem o codigo-fonte dos microsservicos — cada servico e construido a partir do seu proprio repositorio, referenciado via `build.context: ../FCG-UsersAPI` (e equivalentes para CatalogAPI, PaymentsAPI e NotificationsAPI). Isso so funciona se os quatro repositorios estiverem clonados **como pastas irmas** de `FCG-Orchestration`, todas dentro do mesmo diretorio pai:
+
+```
+algum-diretorio/
+├── FCG-Orchestration/     (este repositorio)
+├── FCG-UsersAPI/
+├── FCG-CatalogAPI/
+├── FCG-PaymentsAPI/
+└── FCG-NotificationsAPI/
+```
+
+Clone os cinco repositorios lado a lado antes de continuar:
+
+```bash
+git clone https://github.com/posgraduacaofiapnet/FCG-Orchestration.git
+git clone https://github.com/posgraduacaofiapnet/FCG-UsersAPI.git
+git clone https://github.com/posgraduacaofiapnet/FCG-CatalogAPI.git
+git clone https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI.git
+git clone https://github.com/posgraduacaofiapnet/FCG-NotificationsAPI.git
+cd FCG-Orchestration
+```
+
 ## Executando com Docker Compose
 
 ```bash
