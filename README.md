@@ -119,6 +119,39 @@ Consultar biblioteca:
 GET http://localhost:5102/api/library/{userId}
 ```
 
+## Observabilidade e Correlation ID
+
+Os quatro microsservicos usam Serilog e escrevem logs estruturados em JSON no console. Cada log possui a propriedade `Service`, e os logs gerados dentro de uma requisicao ou do processamento de um evento possuem `CorrelationId`.
+
+O header HTTP adotado e `X-Correlation-ID`:
+
+- quando o cliente envia um valor valido, ele e preservado;
+- quando o header esta ausente ou possui mais de 128 caracteres, a API gera um GUID;
+- a API devolve o identificador no header da resposta;
+- UsersAPI e CatalogAPI propagam o identificador para os eventos publicados;
+- PaymentsAPI preserva o identificador ao publicar o resultado do pagamento;
+- os consumidores do CatalogAPI e NotificationsAPI enriquecem seus logs com o mesmo valor.
+
+Exemplo:
+
+```bash
+curl -i -H "X-Correlation-ID: demo-compra-001" http://localhost:5102/api/games
+docker compose logs | grep demo-compra-001
+```
+
+Os logs nao registram corpos das requisicoes, senhas, tokens JWT ou connection strings.
+
+## Testes Unitarios
+
+Cada microsservico possui um projeto xUnit em `/tests`, com fixtures reutilizaveis e dados gerados pelo Bogus. UsersAPI e CatalogAPI usam o provider InMemory do Entity Framework Core para isolar as regras de persistencia.
+
+```bash
+dotnet test ../FCG-UsersAPI/FCG-UsersAPI.sln
+dotnet test ../FCG-CatalogAPI/FCG-CatalogAPI.sln
+dotnet test ../FCG-PaymentsAPI/FCG-PaymentsAPI.sln
+dotnet test ../FCG-NotificationsAPI/FCG-NotificationsAPI.sln
+```
+
 ## Kubernetes Local
 
 Cada microsservico possui sua propria pasta `/k8s/` com os manifests de Deployment, Service, ConfigMap e Secret.
