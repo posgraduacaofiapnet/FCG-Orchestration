@@ -68,6 +68,16 @@ URLs:
 - RabbitMQ Management: http://localhost:15672 (`guest` / `guest`)
 - SQL Server: `localhost,1433`
 
+## Usuário Administrador Padrão (Seed)
+
+Ao inicializar o `UsersAPI`, um usuário administrador padrão é seedado automaticamente no banco de dados se não existir:
+
+- **E-mail:** `admin@fcg.com`
+- **Senha:** `AdminSenha@123`
+- **Role:** `Admin`
+
+Estas credenciais podem ser customizadas alterando as variáveis de ambiente `Admin__Email` e `Admin__Password` no `docker-compose.yml`.
+
 ## Fluxo de Cadastro
 
 1. Chame `POST http://localhost:5101/api/auth/register`.
