@@ -42,42 +42,6 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 
 ---
 
-## Arquitetura Geral
-
-```mermaid
-graph TD
-    Cliente["👤 Cliente (HTTP)"]
-
-    subgraph "Microserviços"
-        UsersAPI["UsersAPI\n:5101"]
-        CatalogAPI["CatalogAPI\n:5102"]
-        PaymentsAPI["PaymentsAPI\n:5103"]
-        NotificationsAPI["NotificationsAPI\n:5104"]
-    end
-
-    subgraph "Infraestrutura"
-        RabbitMQ["RabbitMQ\n:5672 / :15672"]
-        SQLServer["SQL Server\n:1433"]
-    end
-
-    Cliente -->|"POST /api/auth/register\nPOST /api/auth/login"| UsersAPI
-    Cliente -->|"GET/POST /api/games\nPOST /api/library/purchase\nGET /api/library/{userId}"| CatalogAPI
-
-    UsersAPI -->|"FCGUsersDb"| SQLServer
-    CatalogAPI -->|"FCGCatalogDb"| SQLServer
-
-    UsersAPI -->|"UserCreatedEvent"| RabbitMQ
-    CatalogAPI -->|"OrderPlacedEvent"| RabbitMQ
-    PaymentsAPI -->|"PaymentProcessedEvent"| RabbitMQ
-
-    RabbitMQ -->|"UserCreatedEvent"| NotificationsAPI
-    RabbitMQ -->|"OrderPlacedEvent"| PaymentsAPI
-    RabbitMQ -->|"PaymentProcessedEvent"| CatalogAPI
-    RabbitMQ -->|"PaymentProcessedEvent"| NotificationsAPI
-```
-
----
-
 ## Pré-requisitos
 
 O `docker-compose.yml` **não** contém o código-fonte dos microserviços — cada serviço é construído a partir do seu próprio repositório, referenciado via `build.context: ../FCG-UsersAPI` (e equivalentes). Isso funciona apenas se os cinco repositórios estiverem clonados como **pastas irmãs**:
