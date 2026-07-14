@@ -87,6 +87,16 @@ docker compose up --build
 
 ---
 
+## Usuário Administrador Padrão (Seed)
+
+Ao inicializar o `UsersAPI`, um usuário administrador padrão é seedado automaticamente no banco de dados se não existir:
+
+- **E-mail:** `admin@fcg.com`
+- **Senha:** `AdminSenha@123`
+- **Role:** `Admin`
+
+Estas credenciais podem ser customizadas alterando as variáveis de ambiente `Admin__Email` e `Admin__Password` no `docker-compose.yml`.
+
 ## Fluxo da Aplicação
 
 ### Fluxo de Cadastro

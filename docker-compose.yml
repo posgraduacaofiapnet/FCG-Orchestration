@@ -37,6 +37,8 @@ services:
       - Jwt__Key=zR8pW5vB9yX2mN4qA7L1jK9sT6uE3hG0fD5cX8vB2nN1mQ4wZ7xR0tY3uI6pP9oL
       - Jwt__Issuer=UsersAPI
       - Jwt__Audience=FCG
+      - Admin__Email=admin@fcg.com
+      - Admin__Password=AdminSenha@123
       - RabbitMq__Host=rabbitmq
       - RabbitMq__Username=guest
       - RabbitMq__Password=guest
