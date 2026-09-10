@@ -39,6 +39,7 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 - Serilog
 - Docker / Docker Compose
 - Kubernetes (kubectl)
+- Prometheus & Grafana (Monitoramento e Observabilidade)
 
 ---
 
@@ -84,6 +85,8 @@ docker compose up --build
 | NotificationsAPI Swagger | http://localhost:5104/swagger |
 | RabbitMQ Management | http://localhost:15672 (`guest` / `guest`) |
 | SQL Server | `localhost,1433` (`sa` / senha do compose) |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (`admin` / `admin`) |
 
 ---
 
@@ -218,6 +221,51 @@ docker compose logs | grep demo-compra-001
 
 ---
 
+## Observabilidade e Monitoramento (Fase 3 - Opção A: Prometheus & Grafana)
+
+Na Fase 3 do Tech Challenge, foi adotada a **Opção A: Stack de Código Aberto** com **Prometheus** e **Grafana** para o monitoramento contínuo da aplicação e saúde dos microsserviços.
+
+### Justificativa da Escolha da Stack
+- **Padrão de Mercado CNCF:** O Prometheus é o padrão de fato para coleta de métricas em ambientes de microsserviços e Kubernetes através de seu modelo pull eficiente.
+- **Independência de Vendor Lock-in:** Solução 100% open source e auto-hospedada, sem custos de licença por host/métrica (em contraste com soluções comerciais como Datadog e New Relic).
+- **Flexibilidade e Visualização Rica:** O Grafana permite criar painéis de controle dinâmicos, alertas configuráveis e suporte a provisionamento como código (IaC).
+
+### Métricas Coletadas e Instrumentação
+Os microsserviços **UsersAPI**, **CatalogAPI** e **PaymentsAPI** foram instrumentados utilizando a biblioteca `prometheus-net.AspNetCore`, expondo o endpoint `/metrics` em cada serviço.
+
+As seguintes métricas são capturadas e analisadas:
+1. **Latência de Requisições HTTP:**
+   - Métrica: `http_request_duration_seconds` (Histograma).
+   - Análise: Cálculo de percentis **p50 (mediana)**, **p95** e **p99**, além de tempo médio por endpoint e método.
+2. **Contagem de Requisições (Throughput / RPS):**
+   - Métrica: `http_requests_received_total` (Contador).
+   - Análise: Taxa de requisições por segundo (`req/s`) agregada por serviço e rota.
+3. **Distribuição por Código de Status HTTP:**
+   - Métrica: `http_requests_received_total{code="..."}`.
+   - Análise: Agrupamento em tempo real de requisições 2xx (Sucesso), 4xx (Erros de Cliente) e 5xx (Erros de Servidor).
+4. **Taxa de Erros (%):**
+   - Expressão PromQL: `(sum(rate(http_requests_received_total{code=~"4..|5.."}[1m])) / sum(rate(http_requests_received_total[1m]))) * 100`.
+   - Permite identificar picos de anomalias imediatamente.
+5. **Saúde dos Serviços:**
+   - Métrica: `up{job=~"users-api|catalog-api|payments-api"}` para visualização de disponibilidade instantânea (UP/DOWN).
+
+### Dashboard Grafana Pré-Configurado (Provisioning IaC)
+O Grafana é provisionado automaticamente ao subir o container ou cluster:
+- **Datasource:** Configurado automaticamente apontando para `http://prometheus:9090`.
+- **Dashboard:** Disponível na pasta `FCG` sob o título **"FCG - Visão Geral do Sistema"** (`fcg-system-overview`).
+- **Painéis Inclusos:**
+  - **KPIs em Destaque:** Total de Requisições Processadas, Taxa de Erro Atual (%), Latência p95 Atual e Status dos Serviços.
+  - **Gráfico de Latência:** Curvas temporais de p50, p95 e p99.
+  - **Gráfico de Throughput:** Volume de tráfego por microsserviço.
+  - **Gráfico de Status Codes:** Barras empilhadas dos códigos HTTP retornados.
+  - **Gráfico de Taxa de Erros:** Evolução temporal de falhas 4xx e 5xx.
+
+### Acesso Local
+- **Prometheus:** [http://localhost:9090](http://localhost:9090) (Targets em *Status > Targets*)
+- **Grafana:** [http://localhost:3000](http://localhost:3000) (Login: `admin` / Senha: `admin`)
+
+---
+
 ## Testes Unitários
 
 Cada microserviço possui um projeto **xUnit** em `/tests`, com fixtures reutilizáveis e dados gerados pelo **Bogus**. UsersAPI e CatalogAPI usam o provider **InMemory** do Entity Framework Core para isolar as regras de persistência.
@@ -317,7 +365,13 @@ FCG-Orchestration/
 └── k8s/                         ← Infra compartilhada
     ├── rabbitmq.yaml             ← Deployment + Service do RabbitMQ
     ├── sqlserver.yaml            ← Deployment + Service do SQL Server
-    └── sqlserver-secrets.yaml   ← Secret com a senha SA do SQL Server
+    ├── sqlserver-secrets.yaml   ← Secret com a senha SA do SQL Server
+    └── monitoring/              ← Stack de Observabilidade (Fase 3)
+        ├── prometheus-configmap.yaml
+        ├── prometheus.yaml
+        ├── grafana-configmap.yaml
+        ├── grafana-dashboards-configmap.yaml
+        └── grafana.yaml
 
 FCG-UsersAPI/
 └── k8s/
@@ -405,7 +459,14 @@ cd ../../FCG-NotificationsAPI/k8s
 kubectl apply -f .
 ```
 
-#### Passo 4 — Verificar o cluster
+#### Passo 4 — Deploy da Stack de Monitoramento (Prometheus & Grafana)
+
+```bash
+cd ../../FCG-Orchestration/k8s/monitoring
+kubectl apply -f .
+```
+
+#### Passo 5 — Verificar o cluster
 
 ```bash
 # Listar todos os pods e seus status
@@ -423,23 +484,30 @@ kubectl get events --sort-by='.lastTimestamp'
 
 Todos os Pods devem ter status `Running` e `READY 1/1`.
 
-#### Passo 5 — Acessar os serviços via port-forward
+#### Passo 6 — Acessar os serviços via port-forward
 
 Em terminais separados, execute:
 
 ```bash
+# APIs da aplicação
 kubectl port-forward service/users-api 5101:80
 kubectl port-forward service/catalog-api 5102:80
 kubectl port-forward service/payments-api 5103:80
 kubectl port-forward service/notifications-api 5104:80
+
+# Monitoramento e Observabilidade
+kubectl port-forward service/prometheus 9090:9090
+kubectl port-forward service/grafana 3000:3000
 ```
 
-| Serviço | Swagger |
-|---------|---------|
-| UsersAPI | http://localhost:5101/swagger |
-| CatalogAPI | http://localhost:5102/swagger |
-| PaymentsAPI | http://localhost:5103/swagger |
-| NotificationsAPI | http://localhost:5104/swagger |
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| UsersAPI | http://localhost:5101/swagger | - |
+| CatalogAPI | http://localhost:5102/swagger | - |
+| PaymentsAPI | http://localhost:5103/swagger | - |
+| NotificationsAPI | http://localhost:5104/swagger | - |
+| Prometheus | http://localhost:9090 | - |
+| Grafana | http://localhost:3000 | `admin` / `admin` |
 
 ---
 
@@ -481,14 +549,21 @@ Isso é configurado nos **ConfigMaps** e **Secrets** de cada serviço e injetado
 
 ---
 
-## Evidências para o Vídeo
+## Evidências para o Vídeo (Até 20 Minutos)
 
-- Demonstrar `docker compose up --build` e todos os containers subindo.
-- Mostrar os Swaggers de todas as APIs.
-- Executar o fluxo de cadastro e observar os logs da NotificationsAPI (`UserCreatedEvent`).
-- Executar o fluxo de compra completo e observar logs da PaymentsAPI (`OrderPlacedEvent`) e NotificationsAPI (`PaymentProcessedEvent`).
-- Demonstrar o deploy no cluster Kubernetes local:
-  - Executar `kubectl apply -f .` dentro de cada pasta `/k8s/`.
-  - Executar `kubectl get pods` e mostrar todos os Pods com status `Running`.
-  - Demonstrar `kubectl port-forward` e acessar o Swagger de ao menos uma API.
-  - Executar o fluxo de compra via Swagger e observar os logs com `kubectl logs`.
+- **Execução e Containers:** Demonstrar `docker compose up --build` ou `kubectl get pods` com todos os componentes saudáveis.
+- **Endpoints de Métricas:** Demonstrar a resposta do `/metrics` nos microsserviços instrumentados (UsersAPI e CatalogAPI).
+- **Prometheus Targets:** Acessar `http://localhost:9090/targets` e comprovar que os targets das APIs estão com status `UP`.
+- **Dashboard em Tempo Real no Grafana (Opção A - Entregável Obrigatório):**
+  - Acessar `http://localhost:3000` (Grafana) no dashboard **FCG - Visão Geral do Sistema**.
+  - Realizar requisições através do Swagger ou script de teste.
+  - Mostrar em tempo real o incremento no gráfico de **Throughput (RPS)** e no contador total de requisições.
+  - Exibir a variação do painel de **Latência (p50 / p95 / p99)**.
+  - Provocar requisições com falha (ex: validação inválida ou 401/403) e demonstrar o gráfico de **Status Codes (4xx)** e o cálculo da **Taxa de Erros (%)**.
+- **Fluxos de Negócio e EDA:**
+  - Executar o fluxo de cadastro (`POST /api/auth/register`) e acompanhar logs da NotificationsAPI (`UserCreatedEvent`).
+  - Executar o fluxo de compra e acompanhar logs da PaymentsAPI (`OrderPlacedEvent`) e NotificationsAPI (`PaymentProcessedEvent`).
+- **Deploy no Kubernetes:**
+  - Demonstrar `kubectl apply -f .` em cada diretório de serviço e em `FCG-Orchestration/k8s/monitoring`.
+  - Executar `kubectl get pods` comprovando status `Running` de todos os pods.
+  - Demonstrar acesso via `kubectl port-forward`.
