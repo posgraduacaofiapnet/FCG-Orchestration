@@ -66,6 +66,11 @@ services:
       - RabbitMq__Username=guest
       - RabbitMq__Password=guest
       - RabbitMq__PaymentProcessedQueue=catalog-payment-processed
+      - Sqs__NotificationsQueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
+      - Sqs__Region=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
     ports:
       - "5102:8080"
     depends_on:

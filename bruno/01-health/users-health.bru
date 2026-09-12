@@ -1,0 +1,19 @@
+meta {
+  name: UsersAPI health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{usersUrl}}/health
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  usersUrl: http://localhost:5101
+}
+
+assert {
+  res.status: eq 200
+}

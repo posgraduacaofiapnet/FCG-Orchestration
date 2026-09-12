@@ -1,0 +1,26 @@
+meta {
+  name: FCG APIs
+}
+
+headers {
+  Accept: application/json
+  X-Correlation-ID: {{correlationId}}
+}
+
+vars:pre-request {
+  usersUrl: http://localhost:5101
+  catalogUrl: http://localhost:5102
+  paymentsUrl: http://localhost:5103
+  notificationsUrl: http://localhost:5104
+  adminEmail: admin@fcg.com
+  adminPassword: AdminSenha@123
+  userName: Joao Silva
+  userPassword: Senha@123
+  correlationId: demo-video-001
+}
+
+docs {
+  No Bruno, selecione o ambiente Docker na barra lateral.
+  Tokens e IDs sao gravados em runtime apos Login/Create (vars:post-response).
+  Nao declare userToken/adminToken/userId/gameId no ambiente — o valor vazio tapa o da resposta.
+}

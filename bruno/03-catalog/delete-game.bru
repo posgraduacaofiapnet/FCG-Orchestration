@@ -1,0 +1,23 @@
+meta {
+  name: Delete game (Admin)
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{catalogUrl}}/api/games/{{gameToDeleteId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+vars:pre-request {
+  catalogUrl: http://localhost:5102
+}
+
+assert {
+  res.status: eq 204
+}

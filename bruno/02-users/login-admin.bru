@@ -1,0 +1,52 @@
+meta {
+  name: Login admin
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{usersUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+vars:pre-request {
+  usersUrl: http://localhost:5101
+  adminEmail: admin@fcg.com
+  adminPassword: AdminSenha@123
+}
+
+body:json {
+  {
+    "email": "{{adminEmail}}",
+    "password": "{{adminPassword}}"
+  }
+}
+
+vars:post-response {
+  adminToken: res.body.token
+}
+
+script:post-response {
+  let data = res.getBody();
+  if (typeof data === "string") {
+    data = JSON.parse(data);
+  }
+  const token = String((data && (data.token || data.Token)) || "");
+  if (token) {
+    bru.setVar("adminToken", token);
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Usuario seed: admin@fcg.com / AdminSenha@123
+  Depois do Send, adminToken fica disponivel para criar/editar/apagar jogos.
+}

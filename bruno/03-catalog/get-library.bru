@@ -1,0 +1,25 @@
+meta {
+  name: Get library (User)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{catalogUrl}}/api/library/{{userId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+vars:pre-request {
+  catalogUrl: http://localhost:5102
+  userId: b9cf60ef-b35f-4af8-b957-93c81d3a6f6f
+  userToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiOWNmNjBlZi1iMzVmLTRhZjgtYjk1Ny05M2M4MWQzYTZmNmYiLCJuYW1laWQiOiJiOWNmNjBlZi1iMzVmLTRhZjgtYjk1Ny05M2M4MWQzYTZmNmYiLCJ1bmlxdWVfbmFtZSI6IkpvYW8gU2lsdmEiLCJlbWFpbCI6WyJ0ZXN0ZXItMTc4OTIzNjgyNjkwOUBmY2cuY29tIiwidGVzdGVyLTE3ODkyMzY4MjY5MDlAZmNnLmNvbSJdLCJyb2xlIjpbIlVzZXIiLCJVc2VyIl0sInVzZXJfaWQiOiJiOWNmNjBlZi1iMzVmLTRhZjgtYjk1Ny05M2M4MWQzYTZmNmYiLCJuYmYiOjE3ODkyMzY4MjcsImV4cCI6MTc4OTI0NDAyNywiaWF0IjoxNzg5MjM2ODI3LCJpc3MiOiJVc2Vyc0FQSSIsImF1ZCI6IkZDRyJ9.ubccnEGoEwiKlUAs-81OU1LWFL0mQM3IOuikloimaEc
+}
+
+assert {
+  res.status: eq 200
+}

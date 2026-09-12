@@ -1,0 +1,19 @@
+meta {
+  name: CatalogAPI health
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{catalogUrl}}/health
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  catalogUrl: http://localhost:5102
+}
+
+assert {
+  res.status: eq 200
+}

@@ -23,6 +23,7 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 - [FCG-CatalogAPI](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI)
 - [FCG-PaymentsAPI](https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI)
 - [FCG-NotificationsAPI](https://github.com/posgraduacaofiapnet/FCG-NotificationsAPI)
+- [FCG-Notifications-Lambda](https://github.com/posgraduacaofiapnet/FCG-Notifications-Lambda) — SQS + Lambda (Fase 3)
 - [FCG-Orchestration](https://github.com/posgraduacaofiapnet/FCG-Orchestration) *(este repositório)*
 
 ---
@@ -145,16 +146,19 @@ sequenceDiagram
     participant RabbitMQ
     participant PaymentsAPI
     participant NotificationsAPI
+    participant SQS as Amazon SQS
+    participant Lambda as Notifications Lambda
 
     Cliente->>CatalogAPI: POST /api/games (cria jogo)
     CatalogAPI->>SQLServer: Persiste jogo (FCGCatalogDb)
     CatalogAPI-->>Cliente: 201 Created (gameId)
 
     Cliente->>CatalogAPI: POST /api/library/purchase
-    Note over CatalogAPI: Valida token JWT e ownership
+    Note over CatalogAPI: Valida token JWT e ownership. Nao existe POST /api/orders.
     CatalogAPI->>SQLServer: Cria registro de Order
     CatalogAPI->>RabbitMQ: Publica OrderPlacedEvent
-    CatalogAPI-->>Cliente: 202 Accepted
+    CatalogAPI->>SQS: Publica OrderPaid (fcg-notifications-queue)
+    CatalogAPI-->>Cliente: 202 Accepted { id, status }
 
     RabbitMQ->>PaymentsAPI: Entrega OrderPlacedEvent
     PaymentsAPI->>PaymentsAPI: Simula processamento
@@ -164,7 +168,10 @@ sequenceDiagram
     CatalogAPI->>SQLServer: Adiciona jogo à biblioteca do usuário
 
     RabbitMQ->>NotificationsAPI: Entrega PaymentProcessedEvent
-    NotificationsAPI->>NotificationsAPI: Loga "E-mail de confirmação enviado"
+    NotificationsAPI->>NotificationsAPI: Loga "E-mail de confirmação enviado" (container)
+
+    SQS->>Lambda: Aciona fcg-notifications-function
+    Lambda->>Lambda: Loga notification_sent / email-simulated no CloudWatch
 
     Cliente->>CatalogAPI: GET /api/library/{userId}
     CatalogAPI->>SQLServer: Consulta biblioteca
@@ -196,6 +203,32 @@ sequenceDiagram
 GET http://localhost:5102/api/library/{userId}
 Authorization: Bearer <token>
 ```
+
+> Não use `POST /api/orders`. Esse endpoint existia só no monolito da Fase 1. Na Fase 2/3 a compra é `POST /api/library/purchase`.
+
+### Validar SQS + Lambda (Fase 3)
+
+Depois do `POST /api/library/purchase`, a CatalogAPI envia `OrderPaid` para `fcg-notifications-queue`. A Lambda `fcg-notifications-function` registra um log como se tivesse enviado um e-mail.
+
+```bash
+# 1. Credenciais AWS no FCG-Orchestration/.env (veja .env.example)
+docker compose up --build
+
+# 2. Em outro terminal, na pasta FCG-Notifications-Lambda
+sam logs -n NotificationsFunction --tail
+```
+
+Log esperado no CloudWatch:
+
+```json
+{
+  "event": "notification_sent",
+  "channel": "email-simulated",
+  "status": "success"
+}
+```
+
+Se a compra funcionar mas a Lambda não disparar, a CatalogAPI está sem `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Sem essas variáveis a compra ainda retorna `202` (o erro da SQS só é logado).
 
 ---
 
@@ -597,7 +630,8 @@ Isso é configurado nos **ConfigMaps** e **Secrets** de cada serviço e injetado
   - Provocar requisições com falha (ex: validação inválida ou 401/403) e demonstrar o gráfico de **Status Codes (4xx)** e o cálculo da **Taxa de Erros (%)**.
 - **Fluxos de Negócio e EDA:**
   - Executar o fluxo de cadastro (`POST /api/auth/register`) e acompanhar logs da NotificationsAPI (`UserCreatedEvent`).
-  - Executar o fluxo de compra e acompanhar logs da PaymentsAPI (`OrderPlacedEvent`) e NotificationsAPI (`PaymentProcessedEvent`).
+  - Executar a compra em `POST /api/library/purchase` (não existe `POST /api/orders` nos microserviços).
+  - Acompanhar logs da PaymentsAPI (`OrderPlacedEvent`), da NotificationsAPI (`PaymentProcessedEvent`) e da Lambda no CloudWatch (`notification_sent` / `email-simulated`) após a mensagem cair na SQS `fcg-notifications-queue`.
 - **Deploy no Kubernetes:**
   - Demonstrar `kubectl apply -f .` em cada diretório de serviço, em `FCG-Orchestration/k8s/gateway` e em `FCG-Orchestration/k8s/monitoring`.
   - Executar `kubectl get pods` comprovando status `Running` de todos os pods.

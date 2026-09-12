@@ -1,0 +1,19 @@
+meta {
+  name: NotificationsAPI health
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{notificationsUrl}}/health
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  notificationsUrl: http://localhost:5104
+}
+
+assert {
+  res.status: eq 200
+}

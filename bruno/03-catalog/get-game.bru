@@ -1,0 +1,19 @@
+meta {
+  name: Get game by id
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{catalogUrl}}/api/games/{{gameId}}
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  catalogUrl: http://localhost:5102
+}
+
+assert {
+  res.status: eq 200
+}

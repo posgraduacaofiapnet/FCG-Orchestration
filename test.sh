@@ -1,140 +1,240 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
 # =============================================================================
-# FCG - End-to-End Test Script
+# FCG - executa todas as requisicoes HTTP das APIs (Fase 2)
 # =============================================================================
-# Prerequisites:
-#   - jq installed (brew install jq)
-#   - Services running via Docker Compose OR kubectl port-forward
+# Pre-requisitos:
+#   - curl
+#   - jq  (brew install jq  |  apt-get install jq)
+#   - APIs no ar via Docker Compose, kubectl port-forward ou dotnet run
 #
-# Usage:
+# Uso:
 #   chmod +x test.sh
 #   ./test.sh
+#   ./test.sh --start-docker
+#   USERS_URL=http://localhost:5196 ./test.sh
+#   GATEWAY_URL=http://localhost:8000 ./test.sh   # via Kong (Kubernetes)
 # =============================================================================
+set -euo pipefail
 
-GATEWAY_URL="${GATEWAY_URL:-http://localhost:8000}"
-USERS_URL="$GATEWAY_URL"
-CATALOG_URL="$GATEWAY_URL"
-
-EMAIL="testuser@fcg.com"
-PASSWORD="Senha@123"
-NAME="FCG Tester"
-
-echo ""
-echo "============================================="
-echo "  FCG - FIAP Cloud Games - E2E Test"
-echo "============================================="
-
-# -----------------------------------------------
-# 1. REGISTER
-# -----------------------------------------------
-echo ""
-echo ">>> [1/6] Registering user..."
-REGISTER_RESPONSE=$(curl -s -X POST "$USERS_URL/api/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
-
-echo "$REGISTER_RESPONSE" | jq .
-
-USER_ID=$(echo "$REGISTER_RESPONSE" | jq -r '.id // empty')
-
-if [ -z "$USER_ID" ]; then
-  echo "!! Register failed or user already exists. Trying login to get userId..."
+GATEWAY_URL="${GATEWAY_URL:-}"
+if [[ -n "$GATEWAY_URL" ]]; then
+  USERS_URL="${USERS_URL:-$GATEWAY_URL}"
+  CATALOG_URL="${CATALOG_URL:-$GATEWAY_URL}"
+else
+  USERS_URL="${USERS_URL:-http://localhost:5101}"
+  CATALOG_URL="${CATALOG_URL:-http://localhost:5102}"
 fi
+PAYMENTS_URL="${PAYMENTS_URL:-http://localhost:5103}"
+NOTIFICATIONS_URL="${NOTIFICATIONS_URL:-http://localhost:5104}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@fcg.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-AdminSenha@123}"
+USER_NAME="${USER_NAME:-Joao Silva}"
+USER_EMAIL="${USER_EMAIL:-tester-$(date +%Y%m%d%H%M%S)@fcg.com}"
+USER_PASSWORD="${USER_PASSWORD:-Senha@123}"
+CORRELATION_ID="${CORRELATION_ID:-demo-video-001}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
+PURCHASE_WAIT="${PURCHASE_WAIT:-5}"
+START_DOCKER=0
 
-# -----------------------------------------------
-# 2. LOGIN
-# -----------------------------------------------
-echo ""
-echo ">>> [2/6] Logging in..."
-LOGIN_RESPONSE=$(curl -s -X POST "$USERS_URL/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "$LOGIN_RESPONSE" | jq .
+for arg in "$@"; do
+  case "$arg" in
+    --start-docker) START_DOCKER=1 ;;
+    -h|--help)
+      sed -n '2,16p' "$0"
+      exit 0
+      ;;
+  esac
+done
 
-TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token // empty')
-USER_ID=$(echo "$LOGIN_RESPONSE" | jq -r '.userId // .id // empty')
-
-if [ -z "$TOKEN" ]; then
-  echo "!! Login failed. Aborting."
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl nao encontrado." >&2
+  exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq nao encontrado. Instale com: brew install jq   ou   apt-get install jq" >&2
   exit 1
 fi
 
-echo ""
-echo "    User ID : $USER_ID"
-echo "    Token   : ${TOKEN:0:40}..."
+PASSED=0
+FAILED=0
 
-# -----------------------------------------------
-# 3. CREATE GAME
-# -----------------------------------------------
-echo ""
-echo ">>> [3/6] Creating game in catalog..."
-GAME_RESPONSE=$(curl -s -X POST "$CATALOG_URL/api/games" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "title": "Cyber FIAP",
-    "description": "Jogo demo para o fluxo de compra.",
-    "price": 99.90
-  }')
+step() {
+  echo ""
+  echo ">>> $*"
+}
 
-echo "$GAME_RESPONSE" | jq .
+request() {
+  local expected="$1"
+  local method="$2"
+  local url="$3"
+  local token="${4:-}"
+  local body="${5:-}"
 
-GAME_ID=$(echo "$GAME_RESPONSE" | jq -r '.id // empty')
+  local args=(-sS -w "\n%{http_code}" -X "$method" "$url"
+    -H "Accept: application/json"
+    -H "X-Correlation-ID: $CORRELATION_ID")
 
-if [ -z "$GAME_ID" ]; then
-  echo "!! Could not create game. Aborting."
-  exit 1
+  if [[ -n "$token" ]]; then
+    args+=(-H "Authorization: Bearer $token")
+  fi
+  if [[ -n "$body" ]]; then
+    args+=(-H "Content-Type: application/json" -d "$body")
+  fi
+
+  local raw
+  raw="$(curl "${args[@]}")"
+  local status="${raw##*$'\n'}"
+  local payload="${raw%$'\n'*}"
+
+  if [[ "$status" == "$expected" ]]; then
+    echo "    [OK]   $method $url  ->  $status" >&2
+    PASSED=$((PASSED + 1))
+  else
+    echo "    [FAIL] $method $url  ->  $status (esperado $expected)" >&2
+    FAILED=$((FAILED + 1))
+    echo "$payload" | jq . 2>/dev/null || echo "$payload" >&2
+    return 1
+  fi
+
+  if [[ -n "$payload" ]]; then
+    echo "$payload" | jq . >&2 2>/dev/null || echo "$payload" >&2
+  fi
+  printf '%s' "$payload"
+}
+
+wait_health() {
+  local name="$1"
+  local url="$2"
+  local timeout="$3"
+  local elapsed=0
+
+  echo "    Aguardando $name em $url ..."
+  until curl -sf "$url" >/dev/null 2>&1; do
+    sleep 3
+    elapsed=$((elapsed + 3))
+    if (( elapsed >= timeout )); then
+      echo "$name nao respondeu em ${timeout}s." >&2
+      exit 1
+    fi
+  done
+  echo "    $name pronto."
+}
+
+if (( START_DOCKER == 1 )); then
+  step "Subindo Docker Compose (docker compose up --build -d)"
+  (cd "$SCRIPT_DIR" && docker compose up --build -d)
 fi
 
 echo ""
-echo "    Game ID : $GAME_ID"
+echo "============================================="
+echo "  FCG - FIAP Cloud Games - Teste das APIs"
+echo "============================================="
+echo "  CorrelationId : $CORRELATION_ID"
+echo "  User email    : $USER_EMAIL"
 
-# -----------------------------------------------
-# 4. PURCHASE GAME
-# -----------------------------------------------
-echo ""
-echo ">>> [4/6] Purchasing game..."
-PURCHASE_RESPONSE=$(curl -s -X POST "$CATALOG_URL/api/library/purchase" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d "{\"userId\":\"$USER_ID\",\"gameId\":\"$GAME_ID\"}")
+step "[1/12] Health checks"
+wait_health "UsersAPI" "$USERS_URL/health" "$HEALTH_TIMEOUT"
+wait_health "CatalogAPI" "$CATALOG_URL/health" "$HEALTH_TIMEOUT"
+wait_health "PaymentsAPI" "$PAYMENTS_URL/health" "$HEALTH_TIMEOUT"
+wait_health "NotificationsAPI" "$NOTIFICATIONS_URL/health" "$HEALTH_TIMEOUT"
 
-echo "$PURCHASE_RESPONSE" | jq .
+request 200 GET "$USERS_URL/health" >/dev/null
+request 200 GET "$CATALOG_URL/health" >/dev/null
+request 200 GET "$PAYMENTS_URL/health" >/dev/null
+request 200 GET "$NOTIFICATIONS_URL/health" >/dev/null
 
-# -----------------------------------------------
-# 5. WAIT FOR EVENTS
-# -----------------------------------------------
-echo ""
-echo ">>> [5/6] Waiting 3s for RabbitMQ events to process..."
-sleep 3
+step "[2/12] POST /api/auth/register  (UsersAPI — publica UserCreatedEvent)"
+request 201 POST "$USERS_URL/api/auth/register" "" \
+  "{\"name\":\"$USER_NAME\",\"email\":\"$USER_EMAIL\",\"password\":\"$USER_PASSWORD\"}" >/dev/null
 
-# -----------------------------------------------
-# 6. CHECK LIBRARY
-# -----------------------------------------------
-echo ""
-echo ">>> [6/6] Checking user library..."
-LIBRARY_RESPONSE=$(curl -s -X GET "$CATALOG_URL/api/library/$USER_ID" \
-  -H "Authorization: Bearer $TOKEN")
+step "[3/12] POST /api/auth/login  (usuario comum)"
+LOGIN_USER="$(request 200 POST "$USERS_URL/api/auth/login" "" \
+  "{\"email\":\"$USER_EMAIL\",\"password\":\"$USER_PASSWORD\"}")"
+USER_TOKEN="$(echo "$LOGIN_USER" | jq -r '.token')"
+USER_ID="$(echo "$LOGIN_USER" | jq -r '.userId')"
+if [[ -z "$USER_TOKEN" || "$USER_TOKEN" == "null" || -z "$USER_ID" || "$USER_ID" == "null" ]]; then
+  echo "Login do usuario nao retornou token/userId." >&2
+  exit 1
+fi
+echo "    userId : $USER_ID"
+echo "    token  : ${USER_TOKEN:0:40}..."
 
-echo "$LIBRARY_RESPONSE" | jq .
+step "[4/12] POST /api/auth/login  (admin seed)"
+LOGIN_ADMIN="$(request 200 POST "$USERS_URL/api/auth/login" "" \
+  "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")"
+ADMIN_TOKEN="$(echo "$LOGIN_ADMIN" | jq -r '.token')"
+if [[ -z "$ADMIN_TOKEN" || "$ADMIN_TOKEN" == "null" ]]; then
+  echo "Login do admin nao retornou token. Confirme o seed Admin__Email / Admin__Password." >&2
+  exit 1
+fi
 
-# -----------------------------------------------
-# SUMMARY
-# -----------------------------------------------
+step "[5/12] POST /api/games  (CatalogAPI — exige Admin)"
+GAME="$(request 201 POST "$CATALOG_URL/api/games" "$ADMIN_TOKEN" \
+  '{"title":"Cyber FIAP","description":"Jogo demo para o fluxo de compra.","price":99.90}')"
+GAME_ID="$(echo "$GAME" | jq -r '.id')"
+if [[ -z "$GAME_ID" || "$GAME_ID" == "null" ]]; then
+  echo "Criacao do jogo nao retornou id." >&2
+  exit 1
+fi
+echo "    gameId : $GAME_ID"
+
+step "[6/12] GET /api/games?page=1&pageSize=10"
+request 200 GET "$CATALOG_URL/api/games?page=1&pageSize=10" >/dev/null
+
+step "[7/12] GET /api/games/{id}"
+request 200 GET "$CATALOG_URL/api/games/$GAME_ID" >/dev/null
+
+step "[8/12] PUT /api/games/{id}  (Admin)"
+request 200 PUT "$CATALOG_URL/api/games/$GAME_ID" "$ADMIN_TOKEN" \
+  '{"title":"Cyber FIAP - Remasterizado","description":"Jogo demo atualizado para o video.","price":79.90}' >/dev/null
+
+step "[9/12] POST + DELETE /api/games/{id}  (soft delete, Admin)"
+GAME_DEL="$(request 201 POST "$CATALOG_URL/api/games" "$ADMIN_TOKEN" \
+  '{"title":"Jogo para Soft Delete","description":"Criado apenas para demonstrar o DELETE.","price":19.90}')"
+GAME_DEL_ID="$(echo "$GAME_DEL" | jq -r '.id')"
+request 204 DELETE "$CATALOG_URL/api/games/$GAME_DEL_ID" "$ADMIN_TOKEN" >/dev/null
+
+step "[10/12] POST /api/library/purchase  (User — publica OrderPlacedEvent)"
+request 202 POST "$CATALOG_URL/api/library/purchase" "$USER_TOKEN" \
+  "{\"userId\":\"$USER_ID\",\"gameId\":\"$GAME_ID\"}" >/dev/null
+
+step "[11/12] Aguardando ${PURCHASE_WAIT}s o fluxo RabbitMQ"
+sleep "$PURCHASE_WAIT"
+
+step "[12/12] GET /api/library/{userId}"
+LIBRARY=""
+for i in 1 2 3 4 5 6; do
+  LIBRARY="$(request 200 GET "$CATALOG_URL/api/library/$USER_ID" "$USER_TOKEN")"
+  COUNT="$(echo "$LIBRARY" | jq 'length')"
+  if [[ "$COUNT" -gt 0 ]]; then
+    break
+  fi
+  if [[ "$i" -lt 6 ]]; then
+    echo "    Biblioteca ainda vazia (pagamento assincrono). Nova tentativa em 2s..."
+    sleep 2
+  fi
+done
+
 echo ""
 echo "============================================="
-echo "  DONE"
+echo "  Concluidos : $PASSED  |  Falhas : $FAILED"
 echo "============================================="
 echo "  User ID : $USER_ID"
 echo "  Game ID : $GAME_ID"
+echo "  Email   : $USER_EMAIL"
 echo ""
-echo "  Check event logs:"
-echo "  - docker compose logs notifications_api"
-echo "  - docker compose logs payments_api"
+echo "  Logs dos eventos (Docker):"
+echo "    docker compose -f \"$SCRIPT_DIR/docker-compose.yml\" logs --tail=50 payments-api"
+echo "    docker compose -f \"$SCRIPT_DIR/docker-compose.yml\" logs --tail=50 notifications-api"
+echo "    docker compose logs | grep $CORRELATION_ID"
 echo ""
-echo "  Or on Kubernetes:"
-echo "  - kubectl logs deployment/notifications-api"
-echo "  - kubectl logs deployment/payments-api"
+echo "  Logs dos eventos (Kubernetes):"
+echo "    kubectl logs deployment/payments-api --tail=50"
+echo "    kubectl logs deployment/notifications-api --tail=50"
 echo "============================================="
+
+if (( FAILED > 0 )); then
+  exit 1
+fi

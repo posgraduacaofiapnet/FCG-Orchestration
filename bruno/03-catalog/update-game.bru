@@ -1,0 +1,35 @@
+meta {
+  name: Update game (Admin)
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{catalogUrl}}/api/games/{{gameId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+vars:pre-request {
+  catalogUrl: http://localhost:5102
+}
+
+body:json {
+  {
+    "title": "Cyber FIAP - Remasterizado",
+    "description": "Jogo demo atualizado para o video.",
+    "price": 79.90
+  }
+}
+
+assert {
+  res.status: eq 200
+}
