@@ -10,10 +10,6 @@ get {
   auth: none
 }
 
-vars:pre-request {
-  notificationsUrl: http://localhost:5104
-}
-
 assert {
   res.status: eq 200
 }

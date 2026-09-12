@@ -10,10 +10,6 @@ get {
   auth: none
 }
 
-vars:pre-request {
-  catalogUrl: http://localhost:5102
-}
-
 assert {
   res.status: eq 200
 }

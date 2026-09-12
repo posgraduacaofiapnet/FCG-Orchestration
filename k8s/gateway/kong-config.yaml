@@ -23,6 +23,14 @@ data:
               - /api/auth
             strip_path: false
 
+      - name: users-health
+        url: http://users-api:80/health
+        routes:
+          - name: users-health-route
+            paths:
+              - /health/users
+            strip_path: true
+
       - name: catalog-api
         url: http://catalog-api:80
         routes:
@@ -54,3 +62,11 @@ data:
                 config:
                   claims_to_verify:
                     - exp
+
+      - name: catalog-health
+        url: http://catalog-api:80/health
+        routes:
+          - name: catalog-health-route
+            paths:
+              - /health/catalog
+            strip_path: true

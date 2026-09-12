@@ -79,10 +79,15 @@ docker compose up --build
 
 ### URLs
 
+UsersAPI e CatalogAPI entram pelo **Kong** em `http://localhost:8000`. PaymentsAPI e NotificationsAPI continuam internos (RabbitMQ) e só expõem health/Swagger nas portas diretas.
+
 | Serviço | URL |
 |---------|-----|
-| UsersAPI Swagger | http://localhost:5101/swagger |
-| CatalogAPI Swagger | http://localhost:5102/swagger |
+| **Kong Gateway** (auth, games, library) | http://localhost:8000 |
+| UsersAPI health (via Kong) | http://localhost:8000/health/users |
+| CatalogAPI health (via Kong) | http://localhost:8000/health/catalog |
+| UsersAPI Swagger (debug) | http://localhost:5101/swagger |
+| CatalogAPI Swagger (debug) | http://localhost:5102/swagger |
 | PaymentsAPI Swagger | http://localhost:5103/swagger |
 | NotificationsAPI Swagger | http://localhost:5104/swagger |
 | RabbitMQ Management | http://localhost:15672 (`guest` / `guest`) |
@@ -200,7 +205,7 @@ sequenceDiagram
 **Consultar biblioteca:**
 
 ```http
-GET http://localhost:5102/api/library/{userId}
+GET http://localhost:8000/api/library/{userId}
 Authorization: Bearer <token>
 ```
 
@@ -211,10 +216,13 @@ Authorization: Bearer <token>
 Depois do `POST /api/library/purchase`, a CatalogAPI envia `OrderPaid` para `fcg-notifications-queue`. A Lambda `fcg-notifications-function` registra um log como se tivesse enviado um e-mail.
 
 ```bash
-# 1. Credenciais AWS no FCG-Orchestration/.env (veja .env.example)
+# 1. Uma vez: gravar o profile da AWS (sem .env)
+aws configure
+
+# 2. Subir o compose (o catalog-api monta ~/.aws)
 docker compose up --build
 
-# 2. Em outro terminal, na pasta FCG-Notifications-Lambda
+# 3. Em outro terminal, na pasta FCG-Notifications-Lambda
 sam logs -n NotificationsFunction --tail
 ```
 
@@ -228,7 +236,36 @@ Log esperado no CloudWatch:
 }
 ```
 
-Se a compra funcionar mas a Lambda não disparar, a CatalogAPI está sem `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Sem essas variáveis a compra ainda retorna `202` (o erro da SQS só é logado).
+A compra ainda retorna `202` se a publicação na SQS falhar (o erro só é logado). Sem `aws configure` ou sem o Secret do Kubernetes, a Lambda não dispara.
+
+### Credenciais AWS sem `.env`
+
+Não commite Access Key. A CatalogAPI usa a **cadeia padrão do AWS SDK**.
+
+1. **Local (Docker Compose)** — rode `aws configure` uma vez. O compose monta `~/.aws` no container `catalog-api`. Não precisa de `.env`.
+2. **Secrets Manager (registro no time / backup)** — o script lê o profile local e grava o JSON em `fcg/catalog-aws`:
+
+```powershell
+cd FCG-Orchestration
+.\scripts\sync-aws-credentials.ps1
+```
+
+Isso cria/atualiza o secret na AWS e o Secret `catalog-aws-credentials` no Kubernetes. Depois:
+
+```bash
+kubectl rollout restart deployment/catalog-api
+```
+
+3. **Kubernetes sem o script** — o Deployment da CatalogAPI lê o Secret `catalog-aws-credentials` com `optional: true`. Crie-o assim:
+
+```bash
+kubectl create secret generic catalog-aws-credentials \
+  --from-literal=AWS_ACCESS_KEY_ID="$(aws configure get aws_access_key_id)" \
+  --from-literal=AWS_SECRET_ACCESS_KEY="$(aws configure get aws_secret_access_key)" \
+  --from-literal=AWS_DEFAULT_REGION=us-east-1
+```
+
+IAM mínimo da chave: `sqs:SendMessage` na fila `fcg-notifications-queue`. Em EKS de produção o caminho correto é IRSA (role no pod), sem Access Key.
 
 ---
 
@@ -247,7 +284,7 @@ O header HTTP adotado é `X-Correlation-ID`:
 
 ```bash
 # Exemplo: rastrear uma operação com CorrelationId personalizado
-curl -i -H "X-Correlation-ID: demo-compra-001" http://localhost:5102/api/games
+curl -i -H "X-Correlation-ID: demo-compra-001" http://localhost:8000/api/games
 docker compose logs | grep demo-compra-001
 ```
 
@@ -559,7 +596,7 @@ Use `http://localhost:8000` como origem das requisições externas:
 - `GET /api/games`
 - Operações protegidas em `/api/games` e `/api/library` com `Authorization: Bearer <token>`
 
-O script `test.sh` usa essa origem por padrão. Para outro endereço do proxy, defina `GATEWAY_URL` antes de executá-lo.
+Os scripts `test.sh` e `test-apis.ps1` e a coleção Bruno usam `http://localhost:8000` por padrão (Docker Compose já sobe o Kong). Para outro endereço do proxy, defina `GATEWAY_URL`.
 
 | Serviço | URL | Credenciais |
 |---------|-----|-------------|
@@ -573,7 +610,7 @@ O script `test.sh` usa essa origem por padrão. Para outro endereço do proxy, d
 
 ### Configuração do Kong
 
-O Kong executa em modo DB-less. As rotas e a política JWT estão no ConfigMap `k8s/gateway/kong-config.yaml`; um init container renderiza esse template em um volume temporário com a chave do Secret `k8s/gateway/kong-secret.yaml`, sem incluí-la no ConfigMap.
+O Kong executa em modo DB-less no Docker Compose (`kong/kong.yml`, porta `8000`) e no Kubernetes (`k8s/gateway/`). No cluster, um init container renderiza o template do ConfigMap com a chave do Secret `k8s/gateway/kong-secret.yaml`, sem incluí-la no ConfigMap.
 
 A chave do Kong deve ser a mesma usada pela UsersAPI para emitir tokens e pela CatalogAPI para validá-los. O Kong valida assinatura e expiração nas rotas protegidas, mas a CatalogAPI continua verificando o token e o dono de cada recurso.
 

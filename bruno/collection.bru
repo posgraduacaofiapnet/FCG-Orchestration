@@ -8,8 +8,11 @@ headers {
 }
 
 vars:pre-request {
-  usersUrl: http://localhost:5101
-  catalogUrl: http://localhost:5102
+  gatewayUrl: http://localhost:8000
+  usersUrl: http://localhost:8000
+  catalogUrl: http://localhost:8000
+  usersHealthUrl: http://localhost:8000/health/users
+  catalogHealthUrl: http://localhost:8000/health/catalog
   paymentsUrl: http://localhost:5103
   notificationsUrl: http://localhost:5104
   adminEmail: admin@fcg.com
@@ -20,7 +23,9 @@ vars:pre-request {
 }
 
 docs {
-  No Bruno, selecione o ambiente Docker na barra lateral.
+  Selecione o ambiente Docker (Kong em localhost:8000).
+  Payments e Notifications ficam nas portas diretas 5103/5104.
   Tokens e IDs sao gravados em runtime apos Login/Create (vars:post-response).
   Nao declare userToken/adminToken/userId/gameId no ambiente — o valor vazio tapa o da resposta.
+  Use o ambiente Direct so se quiser falar com as APIs sem o Gateway.
 }

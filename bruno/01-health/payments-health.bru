@@ -10,10 +10,6 @@ get {
   auth: none
 }
 
-vars:pre-request {
-  paymentsUrl: http://localhost:5103
-}
-
 assert {
   res.status: eq 200
 }

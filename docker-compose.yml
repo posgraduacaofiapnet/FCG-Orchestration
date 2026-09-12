@@ -66,11 +66,12 @@ services:
       - RabbitMq__Username=guest
       - RabbitMq__Password=guest
       - RabbitMq__PaymentProcessedQueue=catalog-payment-processed
-      - Sqs__NotificationsQueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
-      - Sqs__Region=${AWS_DEFAULT_REGION:-us-east-1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
-      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - Sqs__NotificationsQueueUrl=https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue
+      - Sqs__Region=us-east-1
+      - AWS_REGION=us-east-1
+      - AWS_SDK_LOAD_CONFIG=1
+    volumes:
+      - ~/.aws:/root/.aws:ro
     ports:
       - "5102:8080"
     depends_on:
@@ -116,6 +117,28 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  kong:
+    image: kong:3.9
+    container_name: fcg_kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - users-api
+      - catalog-api
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   prometheus:
     image: prom/prometheus:v2.51.0

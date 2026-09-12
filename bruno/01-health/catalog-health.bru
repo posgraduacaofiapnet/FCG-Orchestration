@@ -5,13 +5,9 @@ meta {
 }
 
 get {
-  url: {{catalogUrl}}/health
+  url: {{catalogHealthUrl}}
   body: none
   auth: none
-}
-
-vars:pre-request {
-  catalogUrl: http://localhost:5102
 }
 
 assert {

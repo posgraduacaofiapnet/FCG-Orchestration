@@ -14,10 +14,6 @@ auth:bearer {
   token: {{adminToken}}
 }
 
-vars:pre-request {
-  catalogUrl: http://localhost:5102
-}
-
 assert {
   res.status: eq 204
 }

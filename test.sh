@@ -11,19 +11,15 @@
 #   chmod +x test.sh
 #   ./test.sh
 #   ./test.sh --start-docker
-#   USERS_URL=http://localhost:5196 ./test.sh
-#   GATEWAY_URL=http://localhost:8000 ./test.sh   # via Kong (Kubernetes)
+#   GATEWAY_URL=http://localhost:8000 ./test.sh
 # =============================================================================
 set -euo pipefail
 
-GATEWAY_URL="${GATEWAY_URL:-}"
-if [[ -n "$GATEWAY_URL" ]]; then
-  USERS_URL="${USERS_URL:-$GATEWAY_URL}"
-  CATALOG_URL="${CATALOG_URL:-$GATEWAY_URL}"
-else
-  USERS_URL="${USERS_URL:-http://localhost:5101}"
-  CATALOG_URL="${CATALOG_URL:-http://localhost:5102}"
-fi
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:8000}"
+USERS_URL="${USERS_URL:-$GATEWAY_URL}"
+CATALOG_URL="${CATALOG_URL:-$GATEWAY_URL}"
+USERS_HEALTH_URL="${USERS_HEALTH_URL:-$GATEWAY_URL/health/users}"
+CATALOG_HEALTH_URL="${CATALOG_HEALTH_URL:-$GATEWAY_URL/health/catalog}"
 PAYMENTS_URL="${PAYMENTS_URL:-http://localhost:5103}"
 NOTIFICATIONS_URL="${NOTIFICATIONS_URL:-http://localhost:5104}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@fcg.com}"
@@ -132,16 +128,17 @@ echo "============================================="
 echo "  FCG - FIAP Cloud Games - Teste das APIs"
 echo "============================================="
 echo "  CorrelationId : $CORRELATION_ID"
+echo "  Gateway       : $GATEWAY_URL"
 echo "  User email    : $USER_EMAIL"
 
 step "[1/12] Health checks"
-wait_health "UsersAPI" "$USERS_URL/health" "$HEALTH_TIMEOUT"
-wait_health "CatalogAPI" "$CATALOG_URL/health" "$HEALTH_TIMEOUT"
+wait_health "UsersAPI" "$USERS_HEALTH_URL" "$HEALTH_TIMEOUT"
+wait_health "CatalogAPI" "$CATALOG_HEALTH_URL" "$HEALTH_TIMEOUT"
 wait_health "PaymentsAPI" "$PAYMENTS_URL/health" "$HEALTH_TIMEOUT"
 wait_health "NotificationsAPI" "$NOTIFICATIONS_URL/health" "$HEALTH_TIMEOUT"
 
-request 200 GET "$USERS_URL/health" >/dev/null
-request 200 GET "$CATALOG_URL/health" >/dev/null
+request 200 GET "$USERS_HEALTH_URL" >/dev/null
+request 200 GET "$CATALOG_HEALTH_URL" >/dev/null
 request 200 GET "$PAYMENTS_URL/health" >/dev/null
 request 200 GET "$NOTIFICATIONS_URL/health" >/dev/null
 

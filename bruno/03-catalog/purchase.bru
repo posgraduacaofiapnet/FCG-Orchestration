@@ -15,7 +15,7 @@ headers {
 }
 
 auth:bearer {
-  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ODhiMDM5Yy1hZTRjLTRhNzktYjM5My1lZmZlZDRmZDQ4M2MiLCJuYW1laWQiOiI1ODhiMDM5Yy1hZTRjLTRhNzktYjM5My1lZmZlZDRmZDQ4M2MiLCJ1bmlxdWVfbmFtZSI6IkpvYW8gU2lsdmEiLCJlbWFpbCI6WyJ0ZXN0ZXItMTc4OTIzODEzMjAxM0BmY2cuY29tIiwidGVzdGVyLTE3ODkyMzgxMzIwMTNAZmNnLmNvbSJdLCJyb2xlIjpbIlVzZXIiLCJVc2VyIl0sInVzZXJfaWQiOiI1ODhiMDM5Yy1hZTRjLTRhNzktYjM5My1lZmZlZDRmZDQ4M2MiLCJuYmYiOjE3ODkyMzgxNTIsImV4cCI6MTc4OTI0NTM1MiwiaWF0IjoxNzg5MjM4MTUyLCJpc3MiOiJVc2Vyc0FQSSIsImF1ZCI6IkZDRyJ9.Do4meiBbzLR2VrbLpecKjoP6fmBzqJ_ZIcEfuGQ8xmc
+  token: {{userToken}}
 }
 
 body:json {
@@ -23,12 +23,6 @@ body:json {
     "userId": "{{userId}}",
     "gameId": "{{gameId}}"
   }
-}
-
-vars:pre-request {
-  catalogUrl: http://localhost:5102
-  gameId: f0a4c66b-ae50-4cd4-8c1a-8995c1053ed1
-  userId: 588b039c-ae4c-4a79-b393-effed4fd483c
 }
 
 assert {

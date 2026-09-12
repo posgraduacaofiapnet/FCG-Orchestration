@@ -7,26 +7,29 @@
     Cobre health de Users, Catalog, Payments e Notifications, cadastro/login,
     CRUD de jogos (Admin), compra e consulta de biblioteca.
 
-    Funciona com as APIs no Docker Compose, via kubectl port-forward ou
-    rodando localmente - desde que as portas sejam as mesmas (5101-5104)
-    ou sejam informadas por parâmetro.
+    UsersAPI e CatalogAPI passam pelo Kong em http://localhost:8000
+    (Docker Compose ou kubectl port-forward). Payments e Notifications
+    continuam nas portas diretas (5103/5104).
 
 .EXAMPLE
-    # APIs já no ar (docker compose up  ou  port-forward)
+    # APIs já no ar (docker compose up  ou  port-forward do Kong)
     .\test-apis.ps1
 
 .EXAMPLE
-    # Sobe o compose e espera o /health antes de testar
+    # Sobe o compose e espera o health antes de testar
     .\test-apis.ps1 -StartDocker
 
 .EXAMPLE
-    # Portas manuais
-    .\test-apis.ps1 -UsersUrl http://localhost:5196 -CatalogUrl http://localhost:5200
+    # Sem Kong: APIs diretas
+    .\test-apis.ps1 -GatewayUrl "" -UsersUrl http://localhost:5101 -CatalogUrl http://localhost:5102 -UsersHealthUrl http://localhost:5101/health -CatalogHealthUrl http://localhost:5102/health
 #>
 [CmdletBinding()]
 param(
-    [string]$UsersUrl = "http://localhost:5101",
-    [string]$CatalogUrl = "http://localhost:5102",
+    [string]$GatewayUrl = "http://localhost:8000",
+    [string]$UsersUrl = "",
+    [string]$CatalogUrl = "",
+    [string]$UsersHealthUrl = "",
+    [string]$CatalogHealthUrl = "",
     [string]$PaymentsUrl = "http://localhost:5103",
     [string]$NotificationsUrl = "http://localhost:5104",
     [string]$AdminEmail = "admin@fcg.com",
@@ -42,6 +45,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+
+if ([string]::IsNullOrWhiteSpace($UsersUrl)) { $UsersUrl = $GatewayUrl }
+if ([string]::IsNullOrWhiteSpace($CatalogUrl)) { $CatalogUrl = $GatewayUrl }
+if ([string]::IsNullOrWhiteSpace($UsersHealthUrl)) { $UsersHealthUrl = "$GatewayUrl/health/users" }
+if ([string]::IsNullOrWhiteSpace($CatalogHealthUrl)) { $CatalogHealthUrl = "$GatewayUrl/health/catalog" }
 
 if ([string]::IsNullOrWhiteSpace($UserEmail)) {
     $UserEmail = "tester-{0}@fcg.com" -f (Get-Date -Format "yyyyMMddHHmmss")
@@ -211,16 +219,17 @@ Write-Host "=============================================" -ForegroundColor Yell
 Write-Host "  FCG - FIAP Cloud Games - Teste das APIs" -ForegroundColor Yellow
 Write-Host "=============================================" -ForegroundColor Yellow
 Write-Host ("  CorrelationId : {0}" -f $CorrelationId)
+Write-Host ("  Gateway       : {0}" -f $GatewayUrl)
 Write-Host ("  User email    : {0}" -f $UserEmail)
 
 Write-Step "[1/12] Health checks"
-Wait-FcgHealth "UsersAPI" "$UsersUrl/health" $HealthTimeoutSeconds
-Wait-FcgHealth "CatalogAPI" "$CatalogUrl/health" $HealthTimeoutSeconds
+Wait-FcgHealth "UsersAPI" $UsersHealthUrl $HealthTimeoutSeconds
+Wait-FcgHealth "CatalogAPI" $CatalogHealthUrl $HealthTimeoutSeconds
 Wait-FcgHealth "PaymentsAPI" "$PaymentsUrl/health" $HealthTimeoutSeconds
 Wait-FcgHealth "NotificationsAPI" "$NotificationsUrl/health" $HealthTimeoutSeconds
 
-$null = Invoke-FcgRequest -Method GET -Url "$UsersUrl/health" -Expected 200
-$null = Invoke-FcgRequest -Method GET -Url "$CatalogUrl/health" -Expected 200
+$null = Invoke-FcgRequest -Method GET -Url $UsersHealthUrl -Expected 200
+$null = Invoke-FcgRequest -Method GET -Url $CatalogHealthUrl -Expected 200
 $null = Invoke-FcgRequest -Method GET -Url "$PaymentsUrl/health" -Expected 200
 $null = Invoke-FcgRequest -Method GET -Url "$NotificationsUrl/health" -Expected 200
 
