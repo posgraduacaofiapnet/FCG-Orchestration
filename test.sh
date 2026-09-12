@@ -12,8 +12,9 @@
 #   ./test.sh
 # =============================================================================
 
-USERS_URL="http://localhost:5101"
-CATALOG_URL="http://localhost:5102"
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:8000}"
+USERS_URL="$GATEWAY_URL"
+CATALOG_URL="$GATEWAY_URL"
 
 EMAIL="testuser@fcg.com"
 PASSWORD="Senha@123"

@@ -40,6 +40,7 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 - Docker / Docker Compose
 - Kubernetes (kubectl)
 - Prometheus & Grafana (Monitoramento e Observabilidade)
+- Kong Gateway (DB-less)
 
 ---
 
@@ -366,6 +367,11 @@ FCG-Orchestration/
     ├── rabbitmq.yaml             ← Deployment + Service do RabbitMQ
     ├── sqlserver.yaml            ← Deployment + Service do SQL Server
     ├── sqlserver-secrets.yaml   ← Secret com a senha SA do SQL Server
+    ├── gateway/                 ← Kong API Gateway (Fase 3)
+    │   ├── kong-config.yaml
+    │   ├── kong-deployment.yaml
+    │   ├── kong-secret.yaml
+    │   └── kong-service.yaml
     └── monitoring/              ← Stack de Observabilidade (Fase 3)
         ├── prometheus-configmap.yaml
         ├── prometheus.yaml
@@ -407,6 +413,8 @@ FCG-NotificationsAPI/
 ### Deploy Passo a Passo
 
 > **Importante:** O `kubectl apply -f .` deve ser executado **dentro** da pasta `/k8s/` de cada repositório. O diretório raiz contém o `docker-compose.yml`, que não é um manifesto Kubernetes válido.
+
+O Kong Gateway é a porta de entrada das APIs expostas na Fase 3. Ele roteia requisições para UsersAPI e CatalogAPI e valida JWT nas rotas protegidas. PaymentsAPI e NotificationsAPI permanecem internos e seguem se comunicando por RabbitMQ.
 
 #### Passo 1 — Infra compartilhada (RabbitMQ + SQL Server)
 
@@ -459,14 +467,22 @@ cd ../../FCG-NotificationsAPI/k8s
 kubectl apply -f .
 ```
 
-#### Passo 4 — Deploy da Stack de Monitoramento (Prometheus & Grafana)
+#### Passo 4 — Deploy do API Gateway (Kong)
 
 ```bash
-cd ../../FCG-Orchestration/k8s/monitoring
+cd ../../FCG-Orchestration/k8s/gateway
+kubectl apply -f .
+kubectl rollout status deployment/kong-gateway
+```
+
+#### Passo 5 — Deploy da Stack de Monitoramento (Prometheus & Grafana)
+
+```bash
+cd ../monitoring
 kubectl apply -f .
 ```
 
-#### Passo 5 — Verificar o cluster
+#### Passo 6 — Verificar o cluster
 
 ```bash
 # Listar todos os pods e seus status
@@ -484,12 +500,15 @@ kubectl get events --sort-by='.lastTimestamp'
 
 Todos os Pods devem ter status `Running` e `READY 1/1`.
 
-#### Passo 6 — Acessar os serviços via port-forward
+#### Passo 7 — Acessar o sistema
 
 Em terminais separados, execute:
 
 ```bash
-# APIs da aplicação
+# Porta de entrada (Fase 3)
+kubectl port-forward service/kong-gateway 8000:80
+
+# APIs diretas (debug / Swagger)
 kubectl port-forward service/users-api 5101:80
 kubectl port-forward service/catalog-api 5102:80
 kubectl port-forward service/payments-api 5103:80
@@ -500,14 +519,30 @@ kubectl port-forward service/prometheus 9090:9090
 kubectl port-forward service/grafana 3000:3000
 ```
 
+Use `http://localhost:8000` como origem das requisições externas:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/games`
+- Operações protegidas em `/api/games` e `/api/library` com `Authorization: Bearer <token>`
+
+O script `test.sh` usa essa origem por padrão. Para outro endereço do proxy, defina `GATEWAY_URL` antes de executá-lo.
+
 | Serviço | URL | Credenciais |
 |---------|-----|-------------|
-| UsersAPI | http://localhost:5101/swagger | - |
-| CatalogAPI | http://localhost:5102/swagger | - |
-| PaymentsAPI | http://localhost:5103/swagger | - |
-| NotificationsAPI | http://localhost:5104/swagger | - |
+| Kong Gateway | http://localhost:8000 | - |
+| UsersAPI Swagger | http://localhost:5101/swagger | - |
+| CatalogAPI Swagger | http://localhost:5102/swagger | - |
+| PaymentsAPI Swagger | http://localhost:5103/swagger | - |
+| NotificationsAPI Swagger | http://localhost:5104/swagger | - |
 | Prometheus | http://localhost:9090 | - |
 | Grafana | http://localhost:3000 | `admin` / `admin` |
+
+### Configuração do Kong
+
+O Kong executa em modo DB-less. As rotas e a política JWT estão no ConfigMap `k8s/gateway/kong-config.yaml`; um init container renderiza esse template em um volume temporário com a chave do Secret `k8s/gateway/kong-secret.yaml`, sem incluí-la no ConfigMap.
+
+A chave do Kong deve ser a mesma usada pela UsersAPI para emitir tokens e pela CatalogAPI para validá-los. O Kong valida assinatura e expiração nas rotas protegidas, mas a CatalogAPI continua verificando o token e o dono de cada recurso.
 
 ---
 
@@ -564,6 +599,6 @@ Isso é configurado nos **ConfigMaps** e **Secrets** de cada serviço e injetado
   - Executar o fluxo de cadastro (`POST /api/auth/register`) e acompanhar logs da NotificationsAPI (`UserCreatedEvent`).
   - Executar o fluxo de compra e acompanhar logs da PaymentsAPI (`OrderPlacedEvent`) e NotificationsAPI (`PaymentProcessedEvent`).
 - **Deploy no Kubernetes:**
-  - Demonstrar `kubectl apply -f .` em cada diretório de serviço e em `FCG-Orchestration/k8s/monitoring`.
+  - Demonstrar `kubectl apply -f .` em cada diretório de serviço, em `FCG-Orchestration/k8s/gateway` e em `FCG-Orchestration/k8s/monitoring`.
   - Executar `kubectl get pods` comprovando status `Running` de todos os pods.
-  - Demonstrar acesso via `kubectl port-forward`.
+  - Demonstrar acesso via `kubectl port-forward` do Kong (`localhost:8000`) e do Grafana (`localhost:3000`).
