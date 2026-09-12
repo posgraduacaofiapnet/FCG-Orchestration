@@ -23,9 +23,8 @@ vars:pre-request {
 }
 
 docs {
-  Selecione o ambiente Docker (Kong em localhost:8000).
-  Payments e Notifications ficam nas portas diretas 5103/5104.
+  Use o ambiente Docker (Kong em localhost:8000).
+  Payments e Notifications ficam nas portas 5103/5104 (nao passam pelo Gateway).
   Tokens e IDs sao gravados em runtime apos Login/Create (vars:post-response).
   Nao declare userToken/adminToken/userId/gameId no ambiente — o valor vazio tapa o da resposta.
-  Use o ambiente Direct so se quiser falar com as APIs sem o Gateway.
 }

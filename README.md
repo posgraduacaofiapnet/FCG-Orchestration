@@ -37,6 +37,7 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 - FluentValidation
 - Swagger / OpenAPI
 - MassTransit + RabbitMQ
+- Redis (`StackExchange.Redis`)
 - Serilog
 - Docker / Docker Compose
 - Kubernetes (kubectl)
@@ -92,6 +93,7 @@ UsersAPI e CatalogAPI entram pelo **Kong** em `http://localhost:8000`. PaymentsA
 | NotificationsAPI Swagger | http://localhost:5104/swagger |
 | RabbitMQ Management | http://localhost:15672 (`guest` / `guest`) |
 | SQL Server | `localhost,1433` (`sa` / senha do compose) |
+| Redis | `localhost:6379` (cache da listagem `GET /api/games`) |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 (`admin` / `admin`) |
 
@@ -378,6 +380,8 @@ graph TD
             dep_sql["Deployment\nsqlserver"]
             svc_sql["Service\nsqlserver\n:1433"]
             sec_sql["Secret\nsqlserver-secrets"]
+            dep_redis["Deployment\nredis"]
+            svc_redis["Service\nredis\n:6379"]
         end
 
         subgraph "UsersAPI"
@@ -413,6 +417,7 @@ graph TD
     dep_users --> svc_sql
     dep_catalog --> svc_rabbit
     dep_catalog --> svc_sql
+    dep_catalog --> svc_redis
     dep_payments --> svc_rabbit
     dep_notif --> svc_rabbit
 
@@ -435,6 +440,7 @@ graph TD
 FCG-Orchestration/
 └── k8s/                         ← Infra compartilhada
     ├── rabbitmq.yaml             ← Deployment + Service do RabbitMQ
+    ├── redis.yaml                ← Deployment + Service do Redis (cache do catálogo)
     ├── sqlserver.yaml            ← Deployment + Service do SQL Server
     ├── sqlserver-secrets.yaml   ← Secret com a senha SA do SQL Server
     ├── gateway/                 ← Kong API Gateway (Fase 3)
@@ -486,7 +492,7 @@ FCG-NotificationsAPI/
 
 O Kong Gateway é a porta de entrada das APIs expostas na Fase 3. Ele roteia requisições para UsersAPI e CatalogAPI e valida JWT nas rotas protegidas. PaymentsAPI e NotificationsAPI permanecem internos e seguem se comunicando por RabbitMQ.
 
-#### Passo 1 — Infra compartilhada (RabbitMQ + SQL Server)
+#### Passo 1 — Infra compartilhada (RabbitMQ + SQL Server + Redis)
 
 ```bash
 cd FCG-Orchestration/k8s
