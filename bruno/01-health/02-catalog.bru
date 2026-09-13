@@ -1,0 +1,15 @@
+meta {
+  name: CatalogAPI health
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{catalogHealthUrl}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}

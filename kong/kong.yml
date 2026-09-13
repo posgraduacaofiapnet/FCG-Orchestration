@@ -1,0 +1,66 @@
+_format_version: "3.0"
+_transform: true
+
+consumers:
+  - username: users-api
+    jwt_secrets:
+      - key: UsersAPI
+        algorithm: HS256
+        secret: "zR8pW5vB9yX2mN4qA7L1jK9sT6uE3hG0fD5cX8vB2nN1mQ4wZ7xR0tY3uI6pP9oL"
+
+services:
+  - name: users-api
+    url: http://users-api:8080
+    routes:
+      - name: users-auth
+        paths:
+          - /api/auth
+        strip_path: false
+
+  - name: users-health
+    url: http://users-api:8080/health
+    routes:
+      - name: users-health-route
+        paths:
+          - /health/users
+        strip_path: true
+
+  - name: catalog-api
+    url: http://catalog-api:8080
+    routes:
+      - name: catalog-games-read
+        paths:
+          - /api/games
+        methods:
+          - GET
+        strip_path: false
+      - name: catalog-games-write
+        paths:
+          - /api/games
+        methods:
+          - POST
+          - PUT
+          - DELETE
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+      - name: catalog-library
+        paths:
+          - /api/library
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+  - name: catalog-health
+    url: http://catalog-api:8080/health
+    routes:
+      - name: catalog-health-route
+        paths:
+          - /health/catalog
+        strip_path: true

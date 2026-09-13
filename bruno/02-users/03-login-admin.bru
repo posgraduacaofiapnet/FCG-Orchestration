@@ -1,0 +1,56 @@
+meta {
+  name: Login admin
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{usersUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "{{adminEmail}}",
+    "password": "{{adminPassword}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Login admin (raw):", data);
+  
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+  
+  if (data && typeof data === "object") {
+    const token = data.token || data.accessToken || data.jwt;
+    if (token) {
+      bru.setVar("adminToken", token);
+      bru.setEnvVar("adminToken", token);
+      console.log("✅ adminToken salvo com sucesso: ", token);
+    } else {
+      console.log("⚠️ Nenhum token foi encontrado na resposta.");
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}
+
+docs {
+  Usa adminEmail/adminPassword de environments/Docker.bru.
+}

@@ -1,0 +1,77 @@
+meta {
+  name: Register user
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{usersUrl}}/api/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Joao Silva",
+    "email": "{{userEmail}}",
+    "password": "{{userPassword}}"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+script:pre-request {
+  const email = `tester-${Date.now()}@fcg.com`;
+  
+  // Define localmente para esta requisição
+  bru.setVar("userEmail", email);
+  
+  // Garante a persistência global/coleção mesmo sem Environment selecionado
+  bru.setVar("userEmail", email);
+  if (bru.getEnvVar) {
+    bru.setEnvVar("userEmail", email);
+  }
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Register (raw):", data);
+  
+  // 1. Se o Bruno retornou como string, faz o parse para Objeto
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+  
+  // 2. Extrai o email e o ID com fallbacks seguros
+  if (data && typeof data === "object") {
+    // Tenta pegar o email retornado pela API ou resgata a variável enviada na requisição
+    const emailSalvo = data.email || req.getHeaders()["content-type"] ? bru.getVar("userEmail") : null;
+  
+    if (emailSalvo) {
+      bru.setVar("userEmail", emailSalvo);
+      bru.setEnvVar("userEmail", emailSalvo);
+      console.log("✅ email salvo com sucesso:", emailSalvo);
+    } else {
+      console.log("⚠️ Nenhum email foi encontrado na resposta.");
+    }
+  
+    const id = data.id || data.userId;
+    if (id) {
+      bru.setVar("userId", String(id));
+      bru.setEnvVar("userId", String(id));
+      console.log("✅ userId salvo com sucesso:", id);
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}

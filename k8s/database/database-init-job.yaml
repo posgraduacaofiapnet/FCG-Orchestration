@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fcg-database-init
+spec:
+  backoffLimit: 8
+  template:
+    metadata:
+      labels:
+        app: fcg-database-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: database-init
+          image: mcr.microsoft.com/mssql-tools
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              SQLCMD=/opt/mssql-tools18/bin/sqlcmd
+              if [ ! -x "$SQLCMD" ]; then SQLCMD=/opt/mssql-tools/bin/sqlcmd; fi
+              until "$SQLCMD" -S sqlserver,1433 -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT 1"; do sleep 3; done
+              for script in /scripts/*.sql; do
+                "$SQLCMD" -S sqlserver,1433 -U sa -P "$MSSQL_SA_PASSWORD" -C -b -i "$script"
+              done
+          env:
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sqlserver-secrets
+                  key: MSSQL_SA_PASSWORD
+          volumeMounts:
+            - name: database-scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: database-scripts
+          configMap:
+            name: fcg-database-schema

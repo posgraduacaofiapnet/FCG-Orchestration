@@ -1,0 +1,23 @@
+meta {
+  name: Get library
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{catalogUrl}}/api/library/{{userId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{userToken}}
+}
+
+script:pre-request {
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+}
+
+assert {
+  res.status: eq 200
+}

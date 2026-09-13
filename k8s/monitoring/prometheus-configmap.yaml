@@ -31,6 +31,13 @@ data:
             labels:
               application: 'PaymentsAPI'
 
+      - job_name: 'outbox-processors'
+        metrics_path: '/metrics'
+        static_configs:
+          - targets: ['users-outbox-processor:80', 'catalog-outbox-processor:80']
+            labels:
+              application: 'OutboxProcessor'
+
       - job_name: 'prometheus'
         static_configs:
           - targets: ['localhost:9090']

@@ -1,0 +1,54 @@
+meta {
+  name: Create game to delete
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{catalogUrl}}/api/games
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+}
+
+body:json {
+  {
+    "title": "Jogo para Soft Delete",
+    "description": "Criado apenas para demonstrar o DELETE.",
+    "price": 19.90
+  }
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Create game to delete (raw):", data);
+
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+
+  if (data && typeof data === "object") {
+    const id = data.id || data.Id;
+    if (id) {
+      bru.setVar("gameToDeleteId", String(id));
+      bru.setEnvVar("gameToDeleteId", String(id));
+      console.log("✅ gameToDeleteId salvo com sucesso:", id);
+    } else {
+      console.log("⚠️ Nenhum id foi encontrado na resposta.");
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}
+
+assert {
+  res.status: eq 201
+}
