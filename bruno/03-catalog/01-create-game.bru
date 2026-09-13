@@ -1,0 +1,54 @@
+meta {
+  name: Create game
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{catalogUrl}}/api/games
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+}
+
+body:json {
+  {
+    "title": "Cyber FIAP",
+    "description": "Jogo demo para o fluxo de compra.",
+    "price": 99.90
+  }
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Create game (raw):", data);
+
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+
+  if (data && typeof data === "object") {
+    const id = data.id || data.Id;
+    if (id) {
+      bru.setVar("gameId", String(id));
+      bru.setEnvVar("gameId", String(id));
+      console.log("✅ gameId salvo com sucesso:", id);
+    } else {
+      console.log("⚠️ Nenhum id foi encontrado na resposta.");
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}
+
+assert {
+  res.status: eq 201
+}

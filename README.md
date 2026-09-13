@@ -2,7 +2,7 @@
 
 Repositório de orquestração da Fase 2 do Tech Challenge **FIAP Cloud Games (FCG)**.
 
-Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes** dos quatro microserviços da plataforma, além da infraestrutura compartilhada (SQL Server e RabbitMQ).
+Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes** dos quatro microserviços da plataforma, além da infraestrutura compartilhada (SQL Server, MongoDB, Redis e RabbitMQ).
 
 ---
 
@@ -38,6 +38,7 @@ Centraliza a execução local via **Docker Compose** e o deploy em **Kubernetes*
 - Swagger / OpenAPI
 - MassTransit + RabbitMQ
 - Redis (`StackExchange.Redis`)
+- MongoDB (`MongoDB.Driver`)
 - Serilog
 - Docker / Docker Compose
 - Kubernetes (kubectl)
@@ -94,8 +95,11 @@ UsersAPI e CatalogAPI entram pelo **Kong** em `http://localhost:8000`. PaymentsA
 | RabbitMQ Management | http://localhost:15672 (`guest` / `guest`) |
 | SQL Server | `localhost,1433` (`sa` / senha do compose) |
 | Redis | `localhost:6379` (cache da listagem `GET /api/games`) |
+| MongoDB | `localhost:27017` (avaliações `POST/GET /api/games/{id}/reviews`) |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 (`admin` / `admin`) |
+
+Persistência poliglota na CatalogAPI: **SQL Server** guarda jogos, pedidos e biblioteca; **MongoDB** guarda avaliações (`reviews` em `fcg_catalog`); **Redis** cacheia só a listagem `GET /api/games` (TTL 5 min).
 
 ---
 
@@ -382,6 +386,8 @@ graph TD
             sec_sql["Secret\nsqlserver-secrets"]
             dep_redis["Deployment\nredis"]
             svc_redis["Service\nredis\n:6379"]
+            dep_mongo["Deployment\nmongo"]
+            svc_mongo["Service\nmongo\n:27017"]
         end
 
         subgraph "UsersAPI"
@@ -418,6 +424,7 @@ graph TD
     dep_catalog --> svc_rabbit
     dep_catalog --> svc_sql
     dep_catalog --> svc_redis
+    dep_catalog --> svc_mongo
     dep_payments --> svc_rabbit
     dep_notif --> svc_rabbit
 
@@ -441,6 +448,7 @@ FCG-Orchestration/
 └── k8s/                         ← Infra compartilhada
     ├── rabbitmq.yaml             ← Deployment + Service do RabbitMQ
     ├── redis.yaml                ← Deployment + Service do Redis (cache do catálogo)
+    ├── mongodb.yaml              ← Deployment + Service do MongoDB (avaliações de jogos)
     ├── sqlserver.yaml            ← Deployment + Service do SQL Server
     ├── sqlserver-secrets.yaml   ← Secret com a senha SA do SQL Server
     ├── gateway/                 ← Kong API Gateway (Fase 3)
@@ -492,7 +500,7 @@ FCG-NotificationsAPI/
 
 O Kong Gateway é a porta de entrada das APIs expostas na Fase 3. Ele roteia requisições para UsersAPI e CatalogAPI e valida JWT nas rotas protegidas. PaymentsAPI e NotificationsAPI permanecem internos e seguem se comunicando por RabbitMQ.
 
-#### Passo 1 — Infra compartilhada (RabbitMQ + SQL Server + Redis)
+#### Passo 1 — Infra compartilhada (RabbitMQ + SQL Server + Redis + Mongo)
 
 ```bash
 cd FCG-Orchestration/k8s
@@ -600,6 +608,7 @@ Use `http://localhost:8000` como origem das requisições externas:
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/games`
+- `POST /api/games/{id}/reviews` e `GET /api/games/{id}/reviews`
 - Operações protegidas em `/api/games` e `/api/library` com `Authorization: Bearer <token>`
 
 Os scripts `test.sh` e `test-apis.ps1` e a coleção Bruno usam `http://localhost:8000` por padrão (Docker Compose já sobe o Kong). Para outro endereço do proxy, defina `GATEWAY_URL`.
@@ -654,6 +663,7 @@ kubectl delete -f FCG-Orchestration/k8s/
 No Kubernetes, os serviços se comunicam pelo **nome DNS do Service** — não por localhost ou IP fixo. Por exemplo:
 
 - A **CatalogAPI** conecta ao RabbitMQ via hostname `rabbitmq` (nome do Service)
+- A **CatalogAPI** conecta ao MongoDB via `mongo:27017` (avaliações)
 - A **UsersAPI** conecta ao SQL Server via `sqlserver,1433` (nome do Service + porta)
 
 Isso é configurado nos **ConfigMaps** e **Secrets** de cada serviço e injetado como variáveis de ambiente nos containers do Deployment.

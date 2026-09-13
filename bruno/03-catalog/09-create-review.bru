@@ -1,0 +1,53 @@
+meta {
+  name: Create review
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{catalogUrl}}/api/games/{{gameId}}/reviews
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{userToken}}
+}
+
+body:json {
+  {
+    "rating": 5,
+    "comment": "Excelente campanha."
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Create review (raw):", data);
+
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+
+  if (data && typeof data === "object") {
+    const id = data.id || data.Id;
+    if (id) {
+      bru.setVar("reviewId", String(id));
+      bru.setEnvVar("reviewId", String(id));
+      console.log("✅ reviewId salvo com sucesso:", id);
+    } else {
+      console.log("⚠️ Nenhum id foi encontrado na resposta.");
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}

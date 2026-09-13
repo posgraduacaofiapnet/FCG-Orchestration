@@ -4,27 +4,9 @@ meta {
 
 headers {
   Accept: application/json
-  X-Correlation-ID: {{correlationId}}
-}
-
-vars:pre-request {
-  gatewayUrl: http://localhost:8000
-  usersUrl: http://localhost:8000
-  catalogUrl: http://localhost:8000
-  usersHealthUrl: http://localhost:8000/health/users
-  catalogHealthUrl: http://localhost:8000/health/catalog
-  paymentsUrl: http://localhost:5103
-  notificationsUrl: http://localhost:5104
-  adminEmail: admin@fcg.com
-  adminPassword: AdminSenha@123
-  userName: Joao Silva
-  userPassword: Senha@123
-  correlationId: demo-video-001
 }
 
 docs {
-  Use o ambiente Docker (Kong em localhost:8000).
-  Payments e Notifications ficam nas portas 5103/5104 (nao passam pelo Gateway).
-  Tokens e IDs sao gravados em runtime apos Login/Create (vars:post-response).
-  Nao declare userToken/adminToken/userId/gameId no ambiente — o valor vazio tapa o da resposta.
+  Ambiente Docker. Users e Catalog pelo Kong (localhost:8000).
+  Run Collection na raiz, ou rode 2. UsersAPI e em seguida 3. CatalogAPI.
 }

@@ -1,27 +1,24 @@
 meta {
-  name: Update game (Admin)
+  name: Update game
   type: http
-  seq: 4
+  seq: 6
 }
 
 put {
   url: {{catalogUrl}}/api/games/{{gameId}}
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{adminToken}}
+  auth: none
 }
 
 headers {
   Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
 }
 
 body:json {
   {
     "title": "Cyber FIAP - Remasterizado",
-    "description": "Jogo demo atualizado para o video.",
+    "description": "Jogo demo atualizado.",
     "price": 79.90
   }
 }
