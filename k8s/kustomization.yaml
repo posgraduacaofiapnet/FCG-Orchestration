@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - sqlserver.yaml
+  - sqlserver-secrets.yaml
+  - rabbitmq.yaml
+  - redis.yaml
+  - mongodb.yaml
+  - database/database-init-job.yaml
+configMapGenerator:
+  - name: fcg-database-schema
+    files:
+      - database/scripts/000-create-databases.sql
+      - database/scripts/010-users-schema.sql
+      - database/scripts/020-catalog-schema.sql
+generatorOptions:
+  disableNameSuffixHash: true

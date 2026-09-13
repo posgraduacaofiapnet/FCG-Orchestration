@@ -1,15 +1,15 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Executa todas as requisições HTTP das APIs FCG (Fase 2).
+    Executa as requisições HTTP do fluxo FCG da Fase 3.
 
 .DESCRIPTION
-    Cobre health de Users, Catalog, Payments e Notifications, cadastro/login,
+    Cobre health de Users, Catalog, Payments e dos workers de outbox, cadastro/login,
     CRUD de jogos (Admin), compra e consulta de biblioteca.
 
     UsersAPI e CatalogAPI passam pelo Kong em http://localhost:8000
-    (Docker Compose ou kubectl port-forward). Payments e Notifications
-    continuam nas portas diretas (5103/5104).
+    (Docker Compose ou kubectl port-forward). Payments e os workers
+    continuam nas portas diretas (5103/5104/5105).
 
 .EXAMPLE
     # APIs já no ar (docker compose up  ou  port-forward do Kong)
@@ -31,7 +31,8 @@ param(
     [string]$UsersHealthUrl = "",
     [string]$CatalogHealthUrl = "",
     [string]$PaymentsUrl = "http://localhost:5103",
-    [string]$NotificationsUrl = "http://localhost:5104",
+    [string]$UsersOutboxUrl = "http://localhost:5104",
+    [string]$CatalogOutboxUrl = "http://localhost:5105",
     [string]$AdminEmail = "admin@fcg.com",
     [string]$AdminPassword = "AdminSenha@123",
     [string]$UserName = "Joao Silva",
@@ -226,17 +227,19 @@ Write-Step "[1/12] Health checks"
 Wait-FcgHealth "UsersAPI" $UsersHealthUrl $HealthTimeoutSeconds
 Wait-FcgHealth "CatalogAPI" $CatalogHealthUrl $HealthTimeoutSeconds
 Wait-FcgHealth "PaymentsAPI" "$PaymentsUrl/health" $HealthTimeoutSeconds
-Wait-FcgHealth "NotificationsAPI" "$NotificationsUrl/health" $HealthTimeoutSeconds
+Wait-FcgHealth "Users Outbox Processor" "$UsersOutboxUrl/health/ready" $HealthTimeoutSeconds
+Wait-FcgHealth "Catalog Outbox Processor" "$CatalogOutboxUrl/health/ready" $HealthTimeoutSeconds
 
 $null = Invoke-FcgRequest -Method GET -Url $UsersHealthUrl -Expected 200
 $null = Invoke-FcgRequest -Method GET -Url $CatalogHealthUrl -Expected 200
 $null = Invoke-FcgRequest -Method GET -Url "$PaymentsUrl/health" -Expected 200
-$null = Invoke-FcgRequest -Method GET -Url "$NotificationsUrl/health" -Expected 200
+$null = Invoke-FcgRequest -Method GET -Url "$UsersOutboxUrl/health/ready" -Expected 200
+$null = Invoke-FcgRequest -Method GET -Url "$CatalogOutboxUrl/health/ready" -Expected 200
 
 # -----------------------------------------------------------------------------
 # 2. Register
 # -----------------------------------------------------------------------------
-Write-Step "[2/12] POST /api/auth/register  (UsersAPI - publica UserCreatedEvent)"
+Write-Step "[2/12] POST /api/auth/register  (UsersAPI - persiste UserCreated no outbox)"
 $null = Invoke-FcgRequest -Method POST -Url "$UsersUrl/api/auth/register" -Expected 201 -Body @{
     name     = $UserName
     email    = $UserEmail
@@ -332,7 +335,7 @@ $null = Invoke-FcgRequest -Method POST -Url "$CatalogUrl/api/library/purchase" -
 # -----------------------------------------------------------------------------
 # 11. Wait for events
 # -----------------------------------------------------------------------------
-Write-Step ("[11/12] Aguardando {0}s o fluxo RabbitMQ (Payments + Notifications + biblioteca)" -f $PurchaseWaitSeconds)
+Write-Step ("[11/12] Aguardando {0}s o fluxo RabbitMQ, outbox e biblioteca" -f $PurchaseWaitSeconds)
 Start-Sleep -Seconds $PurchaseWaitSeconds
 
 # -----------------------------------------------------------------------------
@@ -367,12 +370,13 @@ Write-Host ("  Email   : {0}" -f $UserEmail)
 Write-Host ""
 Write-Host "  Logs dos eventos (Docker):"
 Write-Host "    docker compose -f `"$PSScriptRoot\docker-compose.yml`" logs --tail=50 payments-api"
-Write-Host "    docker compose -f `"$PSScriptRoot\docker-compose.yml`" logs --tail=50 notifications-api"
+Write-Host "    docker compose -f `"$PSScriptRoot\docker-compose.yml`" logs --tail=50 users-outbox-processor catalog-outbox-processor"
 Write-Host "    docker compose -f `"$PSScriptRoot\docker-compose.yml`" logs | Select-String $CorrelationId"
 Write-Host ""
 Write-Host "  Logs dos eventos (Kubernetes):"
 Write-Host "    kubectl logs deployment/payments-api --tail=50"
-Write-Host "    kubectl logs deployment/notifications-api --tail=50"
+Write-Host "    kubectl logs deployment/users-outbox-processor --tail=50"
+Write-Host "    kubectl logs deployment/catalog-outbox-processor --tail=50"
 Write-Host "=============================================" -ForegroundColor Yellow
 
 if ($script:Failed -gt 0) { exit 1 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# FCG - executa todas as requisicoes HTTP das APIs (Fase 2)
+# FCG - executa as requisicoes HTTP do fluxo da Fase 3
 # =============================================================================
 # Pre-requisitos:
 #   - curl
@@ -21,7 +21,8 @@ CATALOG_URL="${CATALOG_URL:-$GATEWAY_URL}"
 USERS_HEALTH_URL="${USERS_HEALTH_URL:-$GATEWAY_URL/health/users}"
 CATALOG_HEALTH_URL="${CATALOG_HEALTH_URL:-$GATEWAY_URL/health/catalog}"
 PAYMENTS_URL="${PAYMENTS_URL:-http://localhost:5103}"
-NOTIFICATIONS_URL="${NOTIFICATIONS_URL:-http://localhost:5104}"
+USERS_OUTBOX_URL="${USERS_OUTBOX_URL:-http://localhost:5104}"
+CATALOG_OUTBOX_URL="${CATALOG_OUTBOX_URL:-http://localhost:5105}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@fcg.com}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-AdminSenha@123}"
 USER_NAME="${USER_NAME:-Joao Silva}"
@@ -135,14 +136,16 @@ step "[1/12] Health checks"
 wait_health "UsersAPI" "$USERS_HEALTH_URL" "$HEALTH_TIMEOUT"
 wait_health "CatalogAPI" "$CATALOG_HEALTH_URL" "$HEALTH_TIMEOUT"
 wait_health "PaymentsAPI" "$PAYMENTS_URL/health" "$HEALTH_TIMEOUT"
-wait_health "NotificationsAPI" "$NOTIFICATIONS_URL/health" "$HEALTH_TIMEOUT"
+wait_health "Users Outbox Processor" "$USERS_OUTBOX_URL/health/ready" "$HEALTH_TIMEOUT"
+wait_health "Catalog Outbox Processor" "$CATALOG_OUTBOX_URL/health/ready" "$HEALTH_TIMEOUT"
 
 request 200 GET "$USERS_HEALTH_URL" >/dev/null
 request 200 GET "$CATALOG_HEALTH_URL" >/dev/null
 request 200 GET "$PAYMENTS_URL/health" >/dev/null
-request 200 GET "$NOTIFICATIONS_URL/health" >/dev/null
+request 200 GET "$USERS_OUTBOX_URL/health/ready" >/dev/null
+request 200 GET "$CATALOG_OUTBOX_URL/health/ready" >/dev/null
 
-step "[2/12] POST /api/auth/register  (UsersAPI — publica UserCreatedEvent)"
+step "[2/12] POST /api/auth/register  (UsersAPI — persiste UserCreated no outbox)"
 request 201 POST "$USERS_URL/api/auth/register" "" \
   "{\"name\":\"$USER_NAME\",\"email\":\"$USER_EMAIL\",\"password\":\"$USER_PASSWORD\"}" >/dev/null
 
@@ -224,12 +227,13 @@ echo "  Email   : $USER_EMAIL"
 echo ""
 echo "  Logs dos eventos (Docker):"
 echo "    docker compose -f \"$SCRIPT_DIR/docker-compose.yml\" logs --tail=50 payments-api"
-echo "    docker compose -f \"$SCRIPT_DIR/docker-compose.yml\" logs --tail=50 notifications-api"
+echo "    docker compose -f \"$SCRIPT_DIR/docker-compose.yml\" logs --tail=50 users-outbox-processor catalog-outbox-processor"
 echo "    docker compose logs | grep $CORRELATION_ID"
 echo ""
 echo "  Logs dos eventos (Kubernetes):"
 echo "    kubectl logs deployment/payments-api --tail=50"
-echo "    kubectl logs deployment/notifications-api --tail=50"
+echo "    kubectl logs deployment/users-outbox-processor --tail=50"
+echo "    kubectl logs deployment/catalog-outbox-processor --tail=50"
 echo "============================================="
 
 if (( FAILED > 0 )); then

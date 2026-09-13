@@ -13,6 +13,27 @@ services:
       timeout: 5s
       retries: 10
 
+  database-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: fcg_database_init
+    environment:
+      - MSSQL_SA_PASSWORD=ArquiteturaFiap.NET@2026
+    volumes:
+      - ./k8s/database/scripts:/scripts:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        SQLCMD=/opt/mssql-tools18/bin/sqlcmd
+        if [ ! -x "$$SQLCMD" ]; then SQLCMD=/opt/mssql-tools/bin/sqlcmd; fi
+        for script in /scripts/*.sql; do
+          "$$SQLCMD" -S sqlserver,1433 -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -i "$$script"
+        done
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     container_name: fcg_redis
@@ -61,16 +82,11 @@ services:
       - Jwt__Audience=FCG
       - Admin__Email=admin@fcg.com
       - Admin__Password=AdminSenha@123
-      - RabbitMq__Host=rabbitmq
-      - RabbitMq__Username=guest
-      - RabbitMq__Password=guest
     ports:
       - "5101:8080"
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
 
   catalog-api:
     build:
@@ -88,20 +104,14 @@ services:
       - RabbitMq__Username=guest
       - RabbitMq__Password=guest
       - RabbitMq__PaymentProcessedQueue=catalog-payment-processed
-      - Sqs__NotificationsQueueUrl=https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue
-      - Sqs__Region=us-east-1
       - ConnectionStrings__Redis=redis:6379
       - ConnectionStrings__MongoDB=mongodb://mongo:27017
       - Mongo__Database=fcg_catalog
-      - AWS_REGION=us-east-1
-      - AWS_SDK_LOAD_CONFIG=1
-    volumes:
-      - ~/.aws:/root/.aws:ro
     ports:
       - "5102:8080"
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       redis:
@@ -128,24 +138,45 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  notifications-api:
+  users-outbox-processor:
     build:
-      context: ../FCG-NotificationsAPI
-      dockerfile: services/NotificationsAPI/Dockerfile
-    container_name: fcg_notifications_api
+      context: ../FCG-Outbox-Processor
+      dockerfile: Dockerfile
+    container_name: fcg_users_outbox_processor
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - RabbitMq__Host=rabbitmq
-      - RabbitMq__Username=guest
-      - RabbitMq__Password=guest
-      - RabbitMq__UserCreatedQueue=notifications-user-created
-      - RabbitMq__PaymentProcessedQueue=notifications-payment-processed
+      - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGUsersDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
+      - Outbox__Region=${AWS_REGION:-us-east-1}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_SDK_LOAD_CONFIG=1
+    volumes:
+      - ~/.aws:/home/app/.aws:ro
     ports:
       - "5104:8080"
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
+
+  catalog-outbox-processor:
+    build:
+      context: ../FCG-Outbox-Processor
+      dockerfile: Dockerfile
+    container_name: fcg_catalog_outbox_processor
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGCatalogDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
+      - Outbox__Region=${AWS_REGION:-us-east-1}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_SDK_LOAD_CONFIG=1
+    volumes:
+      - ~/.aws:/home/app/.aws:ro
+    ports:
+      - "5105:8080"
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
 
   kong:
     image: kong:3.9
