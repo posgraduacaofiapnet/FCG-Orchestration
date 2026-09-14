@@ -77,7 +77,7 @@ services:
     container_name: fcg_localstack
     environment:
       - SERVICES=sqs,dynamodb,lambda,logs,iam,sts
-      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - SQS_ENDPOINT_STRATEGY=path

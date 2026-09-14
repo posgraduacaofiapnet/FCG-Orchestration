@@ -126,26 +126,26 @@ Use o overlay de produção para executar as imagens `latest` publicadas no GHCR
 notificação ao SQS real da AWS. Bancos, Redis, RabbitMQ, Kong e monitoramento continuam locais; o
 LocalStack não é iniciado. A Lambda implantada na AWS deve estar associada à fila informada.
 
-O arquivo de credenciais deve permanecer fora do Git. Ele precisa conter estas variáveis:
+O arquivo de credenciais deve ser salvo como `.env` na raiz do Orchestration e permanecer fora do
+Git. O Docker Compose o carrega automaticamente. Ele precisa conter estas variáveis:
 
 | Variável | Finalidade |
 |---|---|
 | `AWS_ACCESS_KEY_ID` | Identificador da credencial AWS usada pelos workers |
 | `AWS_SECRET_ACCESS_KEY` | Segredo da credencial AWS usada pelos workers |
 | `AWS_SESSION_TOKEN` | Token opcional para credenciais temporárias |
-| `AWS_DEFAULT_REGION` | Região da fila SQS e da Lambda |
+| `AWS_REGION` | Região da fila SQS e da Lambda |
 | `SQS_NOTIFICATIONS_QUEUE_URL` | URL completa da fila consumida pela Lambda |
 
-Informe o caminho do arquivo privado de produção:
+Execute o modo de produção a partir da raiz do Orchestration:
 
 ```powershell
-$AwsEnvironmentFile = "C:\caminho\seguro\.env.production"
-docker compose --env-file $AwsEnvironmentFile -f docker-compose.yml -f docker-compose.production.yml pull users-api catalog-api payments-api users-outbox-processor catalog-outbox-processor
-docker compose --env-file $AwsEnvironmentFile -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --force-recreate
+docker compose -f docker-compose.yml -f docker-compose.production.yml pull users-api catalog-api payments-api users-outbox-processor catalog-outbox-processor
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --force-recreate
 ```
 
-Para padronizar o nome, também é possível copiar manualmente o arquivo para `.env.production`, que já
-está ignorado pelo Git, e substituir `$AwsEnvironmentFile` por `.env.production` nos comandos.
+O `.gitignore` exclui `.env` e `.env.production`; somente `.env.example`, sem valores reais, é
+versionado como referência das nomenclaturas esperadas.
 
 O operador `!reset` remove os blocos `build` herdados. O `Outbox__ServiceUrl` vazio faz o AWS SDK usar
 o endpoint real da região, enquanto o `!override` remove a dependência dos workers em relação ao
