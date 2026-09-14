@@ -118,7 +118,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1 -StartDocker
 ```
 
 Esse modo usa apenas `docker-compose.yml`, executa `docker compose up --build` e mantém SQS, Lambda e
-DynamoDB no LocalStack.
+DynamoDB no LocalStack. As credenciais `test`, a fila e o endpoint local são definidos diretamente
+nesse arquivo, portanto o modo local não lê nem depende das credenciais AWS do `.env`.
 
 ### Imagens publicadas com AWS real
 

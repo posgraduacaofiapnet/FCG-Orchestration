@@ -174,12 +174,12 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGUsersDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
-      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
-      - Outbox__Region=${AWS_REGION:-us-east-1}
-      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - Outbox__QueueUrl=http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue
+      - Outbox__Region=us-east-1
+      - Outbox__ServiceUrl=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
     ports:
       - "5104:8080"
     depends_on:
@@ -196,12 +196,12 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGCatalogDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
-      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
-      - Outbox__Region=${AWS_REGION:-us-east-1}
-      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - Outbox__QueueUrl=http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue
+      - Outbox__Region=us-east-1
+      - Outbox__ServiceUrl=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
     ports:
       - "5105:8080"
     depends_on:
