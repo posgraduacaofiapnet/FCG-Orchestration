@@ -148,6 +148,16 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --no
 O `.gitignore` exclui `.env` e `.env.production`; somente `.env.example`, sem valores reais, é
 versionado como referência das nomenclaturas esperadas.
 
+## Collection Postman da Fase 3
+
+Importe `postman/FCG-Phase3.postman_collection.json` e execute a collection completa pelo Collection
+Runner. Todas as chamadas externas de Users e Catalog usam o Kong em `http://localhost:8000`.
+
+A collection cria um usuário e um jogo, valida JWT, cache Redis, compra/pagamento, avaliações no
+MongoDB e aguarda os eventos `OrderPlaced` e `PaymentProcessed`. A validação final chama o endpoint
+administrativo `GET /api/notifications/status`, que cruza o outbox SQL com o status `Completed`
+gravado pela Lambda no DynamoDB. Nenhuma credencial AWS fica armazenada na collection.
+
 O operador `!reset` remove os blocos `build` herdados. O `Outbox__ServiceUrl` vazio faz o AWS SDK usar
 o endpoint real da região, enquanto o `!override` remove a dependência dos workers em relação ao
 LocalStack. Não execute `test-apis.ps1` neste modo: o roteiro cria dados e mensagens de teste e valida
