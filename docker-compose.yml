@@ -1,3 +1,5 @@
+name: fcg-orchestration
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -59,14 +61,40 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: fcg_rabbitmq
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=fcg-local-development-cookie
     ports:
       - "5672:5672"
       - "15672:15672"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  localstack:
+    image: localstack/localstack:4.7.0
+    container_name: fcg_localstack
+    environment:
+      - SERVICES=sqs,dynamodb,lambda,logs,iam,sts
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - SQS_ENDPOINT_STRATEGY=path
+      - LOCALSTACK_HOST=localstack:4566
+      - LAMBDA_DOCKER_NETWORK=fcg-orchestration_default
+      - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./localstack/init:/etc/localstack/init/ready.d:ro
+      - ./.artifacts:/opt/code/localstack/artifacts:ro
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/phase3-ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   users-api:
     build:
@@ -146,17 +174,19 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGUsersDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
-      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
       - Outbox__Region=${AWS_REGION:-us-east-1}
+      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_SDK_LOAD_CONFIG=1
-    volumes:
-      - ~/.aws:/home/app/.aws:ro
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
     ports:
       - "5104:8080"
     depends_on:
       database-init:
         condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
 
   catalog-outbox-processor:
     build:
@@ -166,17 +196,19 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGCatalogDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
-      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/174302433776/fcg-notifications-queue}
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
       - Outbox__Region=${AWS_REGION:-us-east-1}
+      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
       - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_SDK_LOAD_CONFIG=1
-    volumes:
-      - ~/.aws:/home/app/.aws:ro
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
     ports:
       - "5105:8080"
     depends_on:
       database-init:
         condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
 
   kong:
     image: kong:3.9

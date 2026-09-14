@@ -82,12 +82,16 @@ inicia sem o ConfigMap dos scripts e sem a aplicação bem-sucedida do seu schem
 
 ## Execução local
 
-Configure suas credenciais AWS pelo provider padrão e, se necessário, sobrescreva a fila:
+O comando abaixo empacota a Lambda, recria o ambiente local, aguarda todas as dependências e valida
+o fluxo completo, inclusive outbox, RabbitMQ, SQS/LocalStack, Lambda e DynamoDB:
 
 ```powershell
-$env:SQS_NOTIFICATIONS_QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/ACCOUNT/fcg-notifications-queue"
-docker compose up --build
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1 -StartDocker
 ```
+
+Para apenas construir e iniciar os componentes, execute `start-local.ps1` com a mesma política de
+execução. Nenhuma credencial AWS é necessária no modo local. As variáveis opcionais para uma conta
+AWS real estão documentadas em `.env.example`.
 
 | Componente | Endereço local |
 |---|---|
@@ -98,7 +102,6 @@ docker compose up --build
 | Users outbox | `http://localhost:5104/health/ready` |
 | Catalog outbox | `http://localhost:5105/health/ready` |
 | RabbitMQ | `http://localhost:15672` |
+| LocalStack (SQS/Lambda/DynamoDB) | `http://localhost:4566` |
 | Prometheus | `http://localhost:9090` |
 | Grafana | `http://localhost:3000` |
-
-O deploy da Lambda é feito separadamente com AWS SAM no repositório `FCG-Notifications-Lambda`.
