@@ -49,7 +49,7 @@ if ([string]::IsNullOrWhiteSpace($accessKey) -or [string]::IsNullOrWhiteSpace($s
 $secretJson = @{
     AWS_ACCESS_KEY_ID     = $accessKey
     AWS_SECRET_ACCESS_KEY = $secretKey
-    AWS_DEFAULT_REGION    = $Region
+    AWS_REGION            = $Region
 } | ConvertTo-Json -Compress
 
 if (-not $SkipSecretsManager) {
@@ -83,7 +83,7 @@ if (-not $SkipKubernetes) {
     kubectl create secret generic $KubernetesSecretName `
         --from-literal=AWS_ACCESS_KEY_ID=$accessKey `
         --from-literal=AWS_SECRET_ACCESS_KEY=$secretKey `
-        --from-literal=AWS_DEFAULT_REGION=$Region `
+        --from-literal=AWS_REGION=$Region `
         --dry-run=client -o yaml | kubectl apply -f -
     if ($LASTEXITCODE -ne 0) {
         throw "Falha ao aplicar o Secret $KubernetesSecretName"
