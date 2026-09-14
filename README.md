@@ -120,16 +120,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1 -StartDocker
 Esse modo usa apenas `docker-compose.yml`, executa `docker compose up --build` e mantém SQS, Lambda e
 DynamoDB no LocalStack.
 
-### Imagens publicadas
+### Imagens publicadas com AWS real
 
-Use o overlay de produção para validar exatamente as imagens `latest` publicadas no GHCR. O operador
-`!reset` remove os blocos `build` herdados, impedindo que o Compose use código local:
+Use o overlay de produção para executar as imagens `latest` publicadas no GHCR e enviar os eventos de
+notificação ao SQS real da AWS. Bancos, Redis, RabbitMQ, Kong e monitoramento continuam locais; o
+LocalStack não é iniciado. A Lambda implantada na AWS deve estar associada à fila informada.
+
+O arquivo de credenciais deve permanecer fora do Git. Ele precisa conter estas variáveis:
+
+| Variável | Finalidade |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Identificador da credencial AWS usada pelos workers |
+| `AWS_SECRET_ACCESS_KEY` | Segredo da credencial AWS usada pelos workers |
+| `AWS_SESSION_TOKEN` | Token opcional para credenciais temporárias |
+| `AWS_DEFAULT_REGION` | Região da fila SQS e da Lambda |
+| `SQS_NOTIFICATIONS_QUEUE_URL` | URL completa da fila consumida pela Lambda |
+
+Informe o caminho do arquivo privado de produção:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.production.yml pull users-api catalog-api payments-api users-outbox-processor catalog-outbox-processor
-docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --force-recreate
-powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1
+$AwsEnvironmentFile = "C:\caminho\seguro\.env.production"
+docker compose --env-file $AwsEnvironmentFile -f docker-compose.yml -f docker-compose.production.yml pull users-api catalog-api payments-api users-outbox-processor catalog-outbox-processor
+docker compose --env-file $AwsEnvironmentFile -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --force-recreate
 ```
+
+Para padronizar o nome, também é possível copiar manualmente o arquivo para `.env.production`, que já
+está ignorado pelo Git, e substituir `$AwsEnvironmentFile` por `.env.production` nos comandos.
+
+O operador `!reset` remove os blocos `build` herdados. O `Outbox__ServiceUrl` vazio faz o AWS SDK usar
+o endpoint real da região, enquanto o `!override` remove a dependência dos workers em relação ao
+LocalStack. Não execute `test-apis.ps1` neste modo: o roteiro cria dados e mensagens de teste e valida
+recursos exclusivos do ambiente LocalStack.
 
 As imagens utilizadas são:
 
@@ -140,6 +161,6 @@ As imagens utilizadas são:
 | PaymentsAPI | `ghcr.io/posgraduacaofiapnet/fcg-payments-api:latest` |
 | Workers de outbox | `ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest` |
 
-O arquivo `docker-compose.production.yml` valida artefatos de produção em infraestrutura local e não
-implanta recursos na conta AWS. O ambiente AWS real continua sendo entregue pelo template SAM da
-Lambda e pelos manifests Kubernetes.
+O arquivo `docker-compose.production.yml` não cria a fila nem implanta a Lambda. Esses recursos
+continuam sendo entregues pelo template SAM de `FCG-Notifications-Lambda`; o Compose apenas publica
+na fila já existente por meio dos dois workers de outbox.

@@ -1,28 +1,64 @@
-# Overlay para validar localmente os mesmos artefatos publicados no GHCR.
-# Use sempre junto com docker-compose.yml. A infraestrutura continua local
-# (inclusive LocalStack), mas nenhum projeto da aplicacao e compilado.
+# Overlay hibrido de producao: executa localmente as imagens publicadas no GHCR,
+# mantem bancos e RabbitMQ locais e envia as notificacoes para o SQS real da AWS.
+# Use sempre com --env-file apontando para um arquivo de credenciais nao versionado.
 services:
+  localstack:
+    profiles:
+      - local-only
+
   users-api:
     image: ghcr.io/posgraduacaofiapnet/fcg-users-api:latest
     pull_policy: always
     build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
 
   catalog-api:
     image: ghcr.io/posgraduacaofiapnet/fcg-catalog-api:latest
     pull_policy: always
     build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
 
   payments-api:
     image: ghcr.io/posgraduacaofiapnet/fcg-payments-api:latest
     pull_policy: always
     build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
 
   users-outbox-processor:
     image: ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest
     pull_policy: always
     build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Outbox__QueueUrl: ${SQS_NOTIFICATIONS_QUEUE_URL:?SQS_NOTIFICATIONS_QUEUE_URL is required}
+      Outbox__Region: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      Outbox__ServiceUrl: ""
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      AWS_REGION: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is required}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is required}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    depends_on: !override
+      database-init:
+        condition: service_completed_successfully
 
   catalog-outbox-processor:
     image: ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest
     pull_policy: always
     build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Outbox__QueueUrl: ${SQS_NOTIFICATIONS_QUEUE_URL:?SQS_NOTIFICATIONS_QUEUE_URL is required}
+      Outbox__Region: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      Outbox__ServiceUrl: ""
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      AWS_REGION: ${AWS_DEFAULT_REGION:?AWS_DEFAULT_REGION is required}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is required}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is required}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    depends_on: !override
+      database-init:
+        condition: service_completed_successfully
