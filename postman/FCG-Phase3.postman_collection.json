@@ -17,6 +17,7 @@
     { "key": "adminToken", "value": "" },
     { "key": "gameId", "value": "" },
     { "key": "notificationEventId", "value": "" },
+    { "key": "runStartedAt", "value": "" },
     { "key": "correlationId", "value": "postman-phase3" }
   ],
   "event": [
@@ -110,6 +111,7 @@
             "exec": [
               "const email = `postman-${Date.now()}@fcg.com`;",
               "pm.collectionVariables.set('userEmail', email);",
+              "pm.collectionVariables.set('runStartedAt', new Date().toISOString());",
               "pm.collectionVariables.set('correlationId', `postman-phase3-${Date.now()}`);"
             ]
           }
@@ -373,8 +375,10 @@
             "exec": [
               "pm.test('Endpoint administrativo respondeu', () => pm.response.to.have.status(200));",
               "const statuses = pm.response.code === 200 ? pm.response.json() : [];",
+              "const runStartedAt = Date.parse(pm.collectionVariables.get('runStartedAt'));",
+              "const currentRunStatuses = statuses.filter(item => Date.parse(item.createdAt) >= runStartedAt);",
               "const required = ['OrderPlaced', 'PaymentProcessed'];",
-              "const completed = required.every(type => statuses.some(item => item.eventType === type && item.outboxIsSuccessful === true && item.lambdaProcessed === true && item.dynamoStatus === 'Completed'));",
+              "const completed = required.every(type => currentRunStatuses.some(item => item.eventType === type && item.outboxIsSuccessful === true && item.lambdaProcessed === true && item.dynamoStatus === 'Completed'));",
               "const attempt = Number(pm.collectionVariables.get('notificationPollAttempt') || 0);",
               "if (!completed && attempt < 30) {",
               "  pm.collectionVariables.set('notificationPollAttempt', attempt + 1);",
@@ -382,7 +386,7 @@
               "} else {",
               "  pm.collectionVariables.unset('notificationPollAttempt');",
               "  pm.test('OrderPlaced e PaymentProcessed foram concluídos pela Lambda', () => pm.expect(completed).to.eql(true));",
-              "  const event = statuses.find(item => item.eventType === 'PaymentProcessed' && item.lambdaProcessed === true);",
+              "  const event = currentRunStatuses.find(item => item.eventType === 'PaymentProcessed' && item.lambdaProcessed === true);",
               "  if (event) pm.collectionVariables.set('notificationEventId', event.id);",
               "}"
             ]
