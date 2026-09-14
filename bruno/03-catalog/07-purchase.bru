@@ -1,0 +1,27 @@
+meta {
+  name: Purchase game
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{catalogUrl}}/api/library/purchase
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{userToken}}
+}
+
+body:json {
+  {
+    "userId": "{{userId}}",
+    "gameId": "{{gameId}}"
+  }
+}
+
+assert {
+  res.status: eq 202
+}

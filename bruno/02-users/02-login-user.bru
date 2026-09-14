@@ -1,0 +1,59 @@
+meta {
+  name: Login user
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{usersUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "{{userEmail}}",
+    "password": "{{userPassword}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  let data = res.getBody();
+  console.log("Response Login user (raw):", data);
+
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      console.log("Erro ao fazer parse do JSON:", e);
+    }
+  }
+
+  if (data && typeof data === "object") {
+    const token = data.token || data.accessToken || data.jwt;
+    if (token) {
+      bru.setVar("userToken", token);
+      bru.setEnvVar("userToken", token);
+      console.log("✅ userToken salvo com sucesso");
+    } else {
+      console.log("⚠️ Nenhum token foi encontrado na resposta.");
+    }
+
+    const id = data.userId || data.id;
+    if (id) {
+      bru.setVar("userId", String(id));
+      bru.setEnvVar("userId", String(id));
+      console.log("✅ userId salvo com sucesso:", id);
+    }
+  } else {
+    console.log("❌ O corpo da resposta não é um objeto válido:", typeof data);
+  }
+}

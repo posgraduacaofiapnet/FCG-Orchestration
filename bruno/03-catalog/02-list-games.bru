@@ -1,0 +1,20 @@
+meta {
+  name: List games
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{catalogUrl}}/api/games
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  pageSize: 10
+}
+
+assert {
+  res.status: eq 200
+}

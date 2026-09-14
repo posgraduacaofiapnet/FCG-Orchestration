@@ -1,3 +1,5 @@
+name: fcg-orchestration
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -13,17 +15,86 @@ services:
       timeout: 5s
       retries: 10
 
+  database-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: fcg_database_init
+    environment:
+      - MSSQL_SA_PASSWORD=ArquiteturaFiap.NET@2026
+    volumes:
+      - ./k8s/database/scripts:/scripts:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        SQLCMD=/opt/mssql-tools18/bin/sqlcmd
+        if [ ! -x "$$SQLCMD" ]; then SQLCMD=/opt/mssql-tools/bin/sqlcmd; fi
+        for script in /scripts/*.sql; do
+          "$$SQLCMD" -S sqlserver,1433 -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -i "$$script"
+        done
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: fcg_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    container_name: fcg_mongo
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: fcg_rabbitmq
+    environment:
+      - RABBITMQ_ERLANG_COOKIE=fcg-local-development-cookie
     ports:
       - "5672:5672"
       - "15672:15672"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  localstack:
+    image: localstack/localstack:4.7.0
+    container_name: fcg_localstack
+    environment:
+      - SERVICES=sqs,dynamodb,lambda,logs,iam,sts
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - SQS_ENDPOINT_STRATEGY=path
+      - LOCALSTACK_HOST=localstack:4566
+      - LAMBDA_DOCKER_NETWORK=fcg-orchestration_default
+      - LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./localstack/init:/etc/localstack/init/ready.d:ro
+      - ./.artifacts:/opt/code/localstack/artifacts:ro
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/phase3-ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   users-api:
     build:
@@ -39,16 +110,11 @@ services:
       - Jwt__Audience=FCG
       - Admin__Email=admin@fcg.com
       - Admin__Password=AdminSenha@123
-      - RabbitMq__Host=rabbitmq
-      - RabbitMq__Username=guest
-      - RabbitMq__Password=guest
     ports:
       - "5101:8080"
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
 
   catalog-api:
     build:
@@ -66,12 +132,19 @@ services:
       - RabbitMq__Username=guest
       - RabbitMq__Password=guest
       - RabbitMq__PaymentProcessedQueue=catalog-payment-processed
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__MongoDB=mongodb://mongo:27017
+      - Mongo__Database=fcg_catalog
     ports:
       - "5102:8080"
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      database-init:
+        condition: service_completed_successfully
       rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
 
   payments-api:
@@ -93,24 +166,71 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  notifications-api:
+  users-outbox-processor:
     build:
-      context: ../FCG-NotificationsAPI
-      dockerfile: services/NotificationsAPI/Dockerfile
-    container_name: fcg_notifications_api
+      context: ../FCG-Outbox-Processor
+      dockerfile: Dockerfile
+    container_name: fcg_users_outbox_processor
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - RabbitMq__Host=rabbitmq
-      - RabbitMq__Username=guest
-      - RabbitMq__Password=guest
-      - RabbitMq__UserCreatedQueue=notifications-user-created
-      - RabbitMq__PaymentProcessedQueue=notifications-payment-processed
+      - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGUsersDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
+      - Outbox__Region=${AWS_REGION:-us-east-1}
+      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
     ports:
       - "5104:8080"
     depends_on:
-      rabbitmq:
+      database-init:
+        condition: service_completed_successfully
+      localstack:
         condition: service_healthy
+
+  catalog-outbox-processor:
+    build:
+      context: ../FCG-Outbox-Processor
+      dockerfile: Dockerfile
+    container_name: fcg_catalog_outbox_processor
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - Outbox__ConnectionString=Server=sqlserver,1433;Database=FCGCatalogDb;User Id=sa;Password=ArquiteturaFiap.NET@2026;TrustServerCertificate=True;
+      - Outbox__QueueUrl=${SQS_NOTIFICATIONS_QUEUE_URL:-http://localstack:4566/queue/us-east-1/000000000000/fcg-notifications-queue}
+      - Outbox__Region=${AWS_REGION:-us-east-1}
+      - Outbox__ServiceUrl=${AWS_SERVICE_URL-http://localstack:4566}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+    ports:
+      - "5105:8080"
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+
+  kong:
+    image: kong:3.9
+    container_name: fcg_kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - users-api
+      - catalog-api
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   prometheus:
     image: prom/prometheus:v2.51.0
