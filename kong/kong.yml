@@ -56,6 +56,17 @@ services:
             config:
               claims_to_verify:
                 - exp
+      - name: catalog-notification-status
+        paths:
+          - /api/notifications/status
+        methods:
+          - GET
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
 
   - name: catalog-health
     url: http://catalog-api:8080/health

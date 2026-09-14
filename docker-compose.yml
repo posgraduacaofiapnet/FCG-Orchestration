@@ -135,6 +135,11 @@ services:
       - ConnectionStrings__Redis=redis:6379
       - ConnectionStrings__MongoDB=mongodb://mongo:27017
       - Mongo__Database=fcg_catalog
+      - Notifications__DynamoDbTableName=fcg-notification-idempotency
+      - Notifications__DynamoDbServiceUrl=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
     ports:
       - "5102:8080"
     depends_on:
