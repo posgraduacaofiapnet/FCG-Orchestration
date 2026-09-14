@@ -1,0 +1,28 @@
+# Overlay para validar localmente os mesmos artefatos publicados no GHCR.
+# Use sempre junto com docker-compose.yml. A infraestrutura continua local
+# (inclusive LocalStack), mas nenhum projeto da aplicacao e compilado.
+services:
+  users-api:
+    image: ghcr.io/posgraduacaofiapnet/fcg-users-api:latest
+    pull_policy: always
+    build: !reset null
+
+  catalog-api:
+    image: ghcr.io/posgraduacaofiapnet/fcg-catalog-api:latest
+    pull_policy: always
+    build: !reset null
+
+  payments-api:
+    image: ghcr.io/posgraduacaofiapnet/fcg-payments-api:latest
+    pull_policy: always
+    build: !reset null
+
+  users-outbox-processor:
+    image: ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest
+    pull_policy: always
+    build: !reset null
+
+  catalog-outbox-processor:
+    image: ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest
+    pull_policy: always
+    build: !reset null

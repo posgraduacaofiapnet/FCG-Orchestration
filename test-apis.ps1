@@ -232,7 +232,11 @@ function Get-NotificationQueueState {
 function Invoke-SqlScalar {
     param([Parameter(Mandatory)][string]$Query)
 
-    $output = $Query | & docker exec -i fcg_sqlserver bash -lc '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -h -1 -W' 2>&1
+    # Windows PowerShell may prefix native stdin with a Unicode BOM. SQL Server
+    # treats that marker as part of the first statement, so transfer the query
+    # as base64 and decode it inside the Linux container before invoking sqlcmd.
+    $encodedQuery = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Query))
+    $output = & docker exec fcg_sqlserver bash -lc "printf '%s' '$encodedQuery' | base64 -d | /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P `"`$MSSQL_SA_PASSWORD`" -C -h -1 -W" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Falha ao consultar SQL Server: $($output -join [Environment]::NewLine)"
     }

@@ -105,3 +105,41 @@ AWS real estão documentadas em `.env.example`.
 | LocalStack (SQS/Lambda/DynamoDB) | `http://localhost:4566` |
 | Prometheus | `http://localhost:9090` |
 | Grafana | `http://localhost:3000` |
+
+## Dois modos de teste
+
+### Código local
+
+Use o arquivo principal quando precisar validar alterações ainda não publicadas. As quatro aplicações
+são compiladas diretamente dos repositórios locais posicionados ao lado do Orchestration:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1 -StartDocker
+```
+
+Esse modo usa apenas `docker-compose.yml`, executa `docker compose up --build` e mantém SQS, Lambda e
+DynamoDB no LocalStack.
+
+### Imagens publicadas
+
+Use o overlay de produção para validar exatamente as imagens `latest` publicadas no GHCR. O operador
+`!reset` remove os blocos `build` herdados, impedindo que o Compose use código local:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.production.yml pull users-api catalog-api payments-api users-outbox-processor catalog-outbox-processor
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --no-build --force-recreate
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1
+```
+
+As imagens utilizadas são:
+
+| Serviço | Imagem |
+|---|---|
+| UsersAPI | `ghcr.io/posgraduacaofiapnet/fcg-users-api:latest` |
+| CatalogAPI | `ghcr.io/posgraduacaofiapnet/fcg-catalog-api:latest` |
+| PaymentsAPI | `ghcr.io/posgraduacaofiapnet/fcg-payments-api:latest` |
+| Workers de outbox | `ghcr.io/posgraduacaofiapnet/fcg-outbox-processor:latest` |
+
+O arquivo `docker-compose.production.yml` valida artefatos de produção em infraestrutura local e não
+implanta recursos na conta AWS. O ambiente AWS real continua sendo entregue pelo template SAM da
+Lambda e pelos manifests Kubernetes.
