@@ -34,6 +34,13 @@ data:
       - name: catalog-api
         url: http://catalog-api:80
         routes:
+          - name: catalog-search
+            paths:
+              - /search
+              - /api/games/search
+            methods:
+              - GET
+            strip_path: false
           - name: catalog-games-read
             paths:
               - /api/games

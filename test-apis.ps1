@@ -361,7 +361,7 @@ $null = Invoke-FcgRequest -Method PUT -Url "$CatalogUrl/api/games/$gameId" -Toke
 # -----------------------------------------------------------------------------
 # 9. Delete (jogo descartavel)
 # -----------------------------------------------------------------------------
-Write-Step "[9/13] POST + DELETE /api/games/{id}  (soft delete, Admin)"
+Write-Step "[9/14] POST + DELETE /api/games/{id}  (soft delete, Admin)"
 $gameToDelete = Invoke-FcgRequest -Method POST -Url "$CatalogUrl/api/games" -Token $adminToken -Expected 201 -Body @{
     title       = "Jogo para Soft Delete"
     description = "Criado apenas para demonstrar o DELETE."
@@ -370,9 +370,20 @@ $gameToDelete = Invoke-FcgRequest -Method POST -Url "$CatalogUrl/api/games" -Tok
 $null = Invoke-FcgRequest -Method DELETE -Url "$CatalogUrl/api/games/$($gameToDelete.id)" -Token $adminToken -Expected 204
 
 # -----------------------------------------------------------------------------
-# 10. Purchase
+# 10. Search (Elasticsearch Fuzzy Search + Relevancia)
 # -----------------------------------------------------------------------------
-Write-Step "[10/13] POST /api/library/purchase  (User - publica OrderPlacedEvent)"
+Write-Step "[10/14] GET /search?q=Cybr  (Elasticsearch Fuzzy Search com erro de digitacao)"
+$searchResults = Invoke-FcgRequest -Method GET -Url "$CatalogUrl/search?q=Cybr&limit=10" -Expected 200
+$matchedGame = @($searchResults) | Where-Object { $_.id -eq $gameId }
+if (-not $matchedGame) {
+    throw "Busca Fuzzy no Elasticsearch nao retornou o jogo atualizado ($gameId)."
+}
+Write-Host ("    [OK] Jogo encontrado via Fuzzy Search com score={0}" -f $matchedGame[0].score) -ForegroundColor Green
+
+# -----------------------------------------------------------------------------
+# 11. Purchase
+# -----------------------------------------------------------------------------
+Write-Step "[11/14] POST /api/library/purchase  (User - publica OrderPlacedEvent)"
 $null = Invoke-FcgRequest -Method POST -Url "$CatalogUrl/api/library/purchase" -Token $userToken -Expected 202 -Body @{
     userId = $userId
     gameId = $gameId

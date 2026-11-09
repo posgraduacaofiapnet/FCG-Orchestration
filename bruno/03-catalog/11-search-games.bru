@@ -1,0 +1,21 @@
+meta {
+  name: Search games (Fuzzy Search Elasticsearch)
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{catalogUrl}}/search
+  body: none
+  auth: none
+}
+
+params:query {
+  q: Cybr FIAP
+  limit: 10
+}
+
+assert {
+  res.status: eq 200
+}
+

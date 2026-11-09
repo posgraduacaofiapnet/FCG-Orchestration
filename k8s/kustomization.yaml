@@ -6,6 +6,7 @@ resources:
   - rabbitmq.yaml
   - redis.yaml
   - mongodb.yaml
+  - elasticsearch.yaml
   - database/database-init-job.yaml
 configMapGenerator:
   - name: fcg-database-schema
