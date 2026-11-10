@@ -2,12 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - sqlserver.yaml
-  - sqlserver-secrets.yaml
   - rabbitmq.yaml
   - redis.yaml
   - mongodb.yaml
   - elasticsearch.yaml
   - database/database-init-job.yaml
+  # Secrets are applied separately (see scripts/apply-k8s-secrets.sh).
+  # Do not commit real credentials into this repo.
 configMapGenerator:
   - name: fcg-database-schema
     files:

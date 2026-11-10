@@ -215,3 +215,7 @@ As imagens utilizadas são:
 O arquivo `docker-compose.production.yml` não cria a fila nem implanta a Lambda. Esses recursos
 continuam sendo entregues pelo template SAM de `FCG-Notifications-Lambda`; o Compose apenas publica
 na fila já existente por meio dos dois workers de outbox.
+
+## CI/CD (Phase 4)
+
+See [docs/CICD.md](docs/CICD.md) for GitHub Actions → ECR → EKS setup.
