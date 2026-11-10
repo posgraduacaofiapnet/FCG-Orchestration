@@ -1,8 +1,26 @@
-# FCG Orchestration — Fase 3
+# FCG Orchestration - preparação da Fase 4
 
 Infraestrutura local e Kubernetes do FIAP Cloud Games. A solução usa Kong como gateway, SQL Server,
 RabbitMQ, Redis, MongoDB, Prometheus/Grafana, dois processos do worker genérico de outbox e uma
 Lambda acionada por SQS.
+
+## Documentação da Fase 4
+
+Esta é a documentação central da evolução do FCG. A branch principal dos repositórios é `master`.
+A solução contém recursos já implementados e pendências para a entrega; os manifests e o modo
+híbrido com AWS não comprovam, por si, uma implantação em Kubernetes gerenciado.
+
+- [Requisitos, situação e pendências da Fase 4](docs/FASE4.md)
+- [Arquitetura, fluxos e persistência poliglota](docs/ARQUITETURA.md)
+- [Procedimentos de validação e evidências](docs/VALIDACAO.md)
+- [Relatório de entrega em Markdown](docs/RELATORIO-ENTREGA.md)
+- [Relatório de entrega em TXT](docs/RELATORIO-ENTREGA.txt)
+
+Revisão de 10/11/2026: MongoDB e Redis estão integrados ao CatalogAPI na `master`. A busca está
+nas branches `feature/elasticsearch` de CatalogAPI e Orchestration, ainda fora da principal.
+As pipelines de UsersAPI e CatalogAPI testam e publicam imagens `latest` no GHCR, sem deploy no
+cluster. Registry nativo da nuvem, tags versionadas, segredos sem valores fixos, serviço de busca
+gerenciado e execução cloud ainda precisam ser concluídos ou comprovados.
 
 ## Repositórios lado a lado
 
@@ -15,6 +33,15 @@ FIAP/
 ├── FCG-Notifications-Lambda/
 └── FCG-Orchestration/
 ```
+
+São necessários os seis repositórios acima. `FCG-NotificationsAPI` é legado da Fase 2 e não está
+no Compose atual; `FCG-Tech-Challenge` preserva o monólito/staging e não é a fonte dos serviços.
+Na revisão local de 10/11/2026, Outbox Processor e Notifications Lambda ainda não estavam clonados.
+Sem eles, os contextos de build dos workers e o empacotamento da Lambda não ficam disponíveis.
+
+Pré-requisitos: Git, SDK .NET 10, Docker com Compose e PowerShell para os scripts. O modo híbrido
+precisa de uma versão do Compose que aceite `!reset` e `!override`. Kubernetes exige `kubectl`,
+contexto configurado e infraestrutura previamente preparada; os arquivos locais não criam o cluster cloud.
 
 ## Comunicação
 
@@ -77,6 +104,11 @@ kubectl apply -k k8s
 kubectl wait --for=condition=complete job/fcg-database-init --timeout=180s
 ```
 
+Esses comandos partem da raiz deste repositório e aplicam somente os recursos listados em
+`k8s/kustomization.yaml`. Gateway, monitoramento, APIs e workers não são incluídos automaticamente
+por esse comando. A Lambda também tem implantação separada. Conferir o contexto/namespace antes
+de aplicar e configurar as credenciais conforme a política do ambiente.
+
 Os deployments das APIs possuem `initContainer` adicional, portanto o container da aplicação não
 inicia sem o ConfigMap dos scripts e sem a aplicação bem-sucedida do seu schema.
 
@@ -92,6 +124,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\test-apis.ps1 -StartDocker
 Para apenas construir e iniciar os componentes, execute `start-local.ps1` com a mesma política de
 execução. Nenhuma credencial AWS é necessária no modo local. As variáveis opcionais para uma conta
 AWS real estão documentadas em `.env.example`.
+
+O script gera `.artifacts/fcg-notifications.zip` a partir do repositório da Lambda antes de subir
+o LocalStack. Na primeira execução, prefira o script: `docker compose up --build` sozinho não gera
+esse pacote. A preparação recria containers, e a validação cria dados de teste. O Compose atual
+contém credenciais fixas de desenvolvimento e não é uma configuração final de segurança da Fase 4.
 
 | Componente | Endereço local |
 |---|---|
@@ -149,6 +186,9 @@ O `.gitignore` exclui `.env` e `.env.production`; somente `.env.example`, sem va
 versionado como referência das nomenclaturas esperadas.
 
 ## Collection Postman da Fase 3
+
+O nome do arquivo foi preservado para compatibilidade. A coleção continua útil como validação
+funcional da base da Fase 4, mas não comprova busca avançada, desempenho ou deploy cloud.
 
 Importe `postman/FCG-Phase3.postman_collection.json` e execute a collection completa pelo Collection
 Runner. Todas as chamadas externas de Users e Catalog usam o Kong em `http://localhost:8000`.
