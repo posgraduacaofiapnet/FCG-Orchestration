@@ -88,3 +88,11 @@ data:
             paths:
               - /health/catalog
             strip_path: true
+
+      - name: payments-health
+        url: http://payments-api:80/health
+        routes:
+          - name: payments-health-route
+            paths:
+              - /health/payments
+            strip_path: true
