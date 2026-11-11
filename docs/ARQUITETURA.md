@@ -1,6 +1,6 @@
 # Arquitetura do FCG para a Fase 4
 
-Situação documentada em 10/11/2026, conforme a `master` disponível. A arquitetura mantém os fluxos de pagamento da Fase 2 e a evolução de notificações da Fase 3, acrescentando a preparação dos requisitos da Fase 4.
+Situação documentada em 11/11/2026, conforme a `master` e a execução no Amazon EKS `fcg-eks` (`us-east-1`). A arquitetura mantém os fluxos de pagamento da Fase 2 e a evolução de notificações da Fase 3, com os requisitos de nuvem/CI/CD/busca da Fase 4 em operação.
 
 ## Componentes e responsabilidades
 
@@ -8,7 +8,8 @@ Situação documentada em 10/11/2026, conforme a `master` disponível. A arquite
 |---|---|---|
 | Kong | Entrada HTTP e validação JWT nas rotas protegidas | Encaminha para UsersAPI e CatalogAPI |
 | UsersAPI | Cadastro, login, JWT e seed de administrador | SQL Server `FCGUsersDb`; usuário e outbox na mesma transação |
-| CatalogAPI | Jogos, pedidos, biblioteca, avaliações e consulta administrativa de notificações | SQL Server `FCGCatalogDb`, MongoDB, Redis, RabbitMQ e leitura do DynamoDB |
+| CatalogAPI | Jogos, pedidos, biblioteca, avaliações, busca `/search` e consulta administrativa de notificações | SQL Server `FCGCatalogDb`, MongoDB, Redis, Elasticsearch, RabbitMQ e leitura do DynamoDB |
+| Elasticsearch | Índice de jogos para fuzzy search e relevância (`fcg-games`) | Serviço no cluster EKS (`elasticsearch:9200`); não é Amazon OpenSearch Service |
 | PaymentsAPI | Simular aprovação/rejeição de pagamento | RabbitMQ/MassTransit; sem banco próprio |
 | Outbox Processor | Publicar eventos de notificação persistidos em SQL | Dois processos, um por banco, publicando na SQS |
 | Notifications Lambda | Processar notificações e registrar status/idempotência | SQS e DynamoDB, conforme integração descrita no Orchestration |
@@ -26,6 +27,7 @@ flowchart LR
     Catalog --> CatalogDB[(SQL Catalog + outboxes)]
     Catalog --> Redis[(Redis)]
     Catalog --> Mongo[(MongoDB: avaliações)]
+    Catalog --> ES[(Elasticsearch: fcg-games)]
     CatalogDB --> MT[Delivery do Bus Outbox]
     MT --> Rabbit[RabbitMQ]
     Rabbit --> Payments[PaymentsAPI]
@@ -67,16 +69,16 @@ As tabelas `messaging.InboxState`, `messaging.OutboxMessage` e `messaging.Outbox
 - **Redis:** cache da listagem de jogos por página/tamanho. O prefixo da instância é `fcg:`; as chaves incluem a versão da listagem e têm TTL de 5 minutos. Criar, editar ou desativar jogo muda a versão do cache. Falhas de cache são logadas e a consulta pode voltar ao SQL. Sem configuração Redis, o código usa cache distribuído em memória do processo, que não atende ao requisito de distribuição entre réplicas.
 - **DynamoDB:** consulta do status de notificações, cruzando IDs da outbox com registros da tabela de idempotência. Não é a origem dos jogos nem das avaliações.
 
-## Busca planejada para integração
+## Busca (Elasticsearch)
 
-A `master` ainda não possui `/search`. A branch `feature/elasticsearch` contém um índice separado do SQL, busca fuzzy, relevância e sincronização ao alterar jogos. O desenho final deve usar Elasticsearch/OpenSearch gerenciado. Após integração, validar recuperação de falhas de indexação e reindexação antes de declarar consistência do índice.
+A CatalogAPI na `master` expõe `/search` (também via Kong) com fuzzy search, score de relevância e sincronização/reindexação de jogos. O índice `fcg-games` fica no Elasticsearch implantado no EKS (`ConnectionStrings__Elasticsearch=http://elasticsearch:9200`). Isso atende o fluxo funcional de busca no cluster gerenciado; não utiliza Amazon OpenSearch Service como PaaS separado.
 
 ## Infraestrutura disponível e limites
 
-O Compose local usa LocalStack para SQS/Lambda/DynamoDB. O overlay `docker-compose.production.yml` usa imagens GHCR e AWS real para notificações, mas mantém APIs, bancos, cache e gateway locais: é um modo híbrido, não prova de execução em Kubernetes gerenciado.
+O Compose local usa LocalStack para SQS/Lambda/DynamoDB. O overlay `docker-compose.production.yml` continua sendo modo híbrido local+AWS de notificações.
 
-`kubectl apply -k k8s` aplica somente os recursos listados no `k8s/kustomization.yaml`: SQL Server, Secrets associados, RabbitMQ, Redis, MongoDB e inicialização do banco. Gateway, monitoramento, APIs, workers e Lambda exigem preparação separada. Os manifests atuais não equivalem a um provisionamento de EKS/AKS/GKE/OKE.
+Em nuvem, o cluster **Amazon EKS** `fcg-eks` hospeda Kong (LoadBalancer), APIs, SQL Server, Redis, MongoDB, RabbitMQ e Elasticsearch. Provisionamento e operação estão em [CICD.md](CICD.md) e nos scripts `scripts/provision-*.sh` / `apply-*.sh`.
 
-As probes `/health` das APIs respondem com o estado HTTP do processo; não realizam uma verificação completa das dependências. MongoDB/Redis nos manifests atuais não têm PVC. Persistência, recuperação e comportamento no rollout devem ser validados no ambiente final.
+As probes `/health` refletem o processo HTTP. MongoDB/Redis/Elasticsearch nos manifests atuais não definem PVC — adequado para demo do desafio; não é HA de produção.
 
-As pipelines atuais testam e publicam imagens `latest` no GHCR. Não atualizam o cluster automaticamente. Injeção via `secretKeyRef` existe, mas ainda há valores fixos versionados, inclusive configuração JWT do Kong. Essas pendências estão na [matriz da Fase 4](FASE4.md).
+As pipelines publicam imagens versionadas por SHA no **Amazon ECR** e fazem rolling update no EKS via OIDC. Detalhes e matriz de requisitos: [FASE4.md](FASE4.md).
