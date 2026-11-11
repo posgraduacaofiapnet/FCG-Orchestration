@@ -370,3 +370,9 @@ FodyWeavers.xsd
 # Local Kubernetes secrets (never commit real credentials)
 k8s/sqlserver-secrets.yaml
 k8s/gateway/kong-secret.yaml
+
+# macOS / Bruno local artifacts
+.DS_Store
+bruno/.DS_Store
+bruno/bruno-report.html
+bruno/results.json
