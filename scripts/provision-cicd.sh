@@ -75,10 +75,11 @@ PY
   echo "    OIDC provider created"
 fi
 
+# Match master pushes and workflow_dispatch (no GitHub Environment required).
 REPO_SUBJECTS=()
 for repo in "${REPOS[@]}"; do
   REPO_SUBJECTS+=("repo:${GITHUB_ORG}/${repo}:ref:refs/heads/master")
-  REPO_SUBJECTS+=("repo:${GITHUB_ORG}/${repo}:environment:production")
+  REPO_SUBJECTS+=("repo:${GITHUB_ORG}/${repo}:*")
 done
 
 # Build trust policy JSON
@@ -204,8 +205,7 @@ EKS_CLUSTER_NAME=${CLUSTER_NAME}
 
 Next:
   1) Create/reuse the EKS cluster:  ./scripts/provision-eks.sh
-  2) Map the deploy role into the cluster RBAC (script prints the command)
-  3) Apply cluster secrets:         ./scripts/apply-k8s-secrets.sh
-  4) Apply infra + API manifests
-  5) Push to master to trigger CI/CD
+  2) Edit local secret files, then: ./scripts/apply-k8s-secrets.sh
+  3) Apply infra + APIs (see docs/CICD.md) — never apply *.example.yaml
+  4) Merge CI PRs / push master to trigger deploy
 EOF

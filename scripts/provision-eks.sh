@@ -89,10 +89,12 @@ EKS ready: ${CLUSTER_NAME}
 Kubeconfig updated for the current shell user.
 
 Next:
+  # Edit local secret files if they were just created from examples, then:
   ./scripts/apply-k8s-secrets.sh
   kubectl apply -k k8s
-  kubectl apply -f ../FCG-UsersAPI/k8s/
-  kubectl apply -f ../FCG-CatalogAPI/k8s/
-  kubectl apply -f ../FCG-PaymentsAPI/k8s/
-  kubectl apply -f k8s/gateway/
+  kubectl apply -f k8s/gateway/kong-config.yaml
+  kubectl apply -f k8s/gateway/kong-deployment.yaml
+  kubectl apply -f k8s/gateway/kong-service.yaml
+  ./scripts/apply-api-manifests.sh
+  # Do NOT: kubectl apply -f ../FCG-*/k8s/  (that includes secret.example.yaml)
 EOF

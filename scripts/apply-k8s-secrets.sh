@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Applies Kubernetes Secrets from local files that are NOT committed.
 # Copies *.example.yaml -> secret files on first run, then kubectl apply.
+# Refuses to apply placeholders (REPLACE_ME / REPLACE_WITH_*).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,7 +25,16 @@ ensure_from_example() {
       exit 1
     fi
     cp "$example" "$target"
-    echo "Created ${target} from example — edit real values before production use."
+    echo "Created ${target} from example — edit real values before re-running."
+  fi
+}
+
+assert_no_placeholders() {
+  local file="$1"
+  if grep -Eq 'REPLACE_ME|REPLACE_WITH_' "$file"; then
+    echo "Refusing to apply ${file}: still contains REPLACE_* placeholders." >&2
+    echo "Edit the file with real credentials, then run this script again." >&2
+    exit 1
   fi
 }
 
@@ -44,10 +54,20 @@ ensure_from_example \
   "${PARENT}/FCG-PaymentsAPI/k8s/secret.yaml" \
   "${PARENT}/FCG-PaymentsAPI/k8s/secret.example.yaml"
 
+SECRET_FILES=(
+  "${ROOT_DIR}/k8s/sqlserver-secrets.yaml"
+  "${ROOT_DIR}/k8s/gateway/kong-secret.yaml"
+  "${PARENT}/FCG-UsersAPI/k8s/secret.yaml"
+  "${PARENT}/FCG-CatalogAPI/k8s/secret.yaml"
+  "${PARENT}/FCG-PaymentsAPI/k8s/secret.yaml"
+)
+
+for file in "${SECRET_FILES[@]}"; do
+  assert_no_placeholders "$file"
+done
+
 echo ">>> Applying secrets"
-kubectl apply -f "${ROOT_DIR}/k8s/sqlserver-secrets.yaml"
-kubectl apply -f "${ROOT_DIR}/k8s/gateway/kong-secret.yaml"
-kubectl apply -f "${PARENT}/FCG-UsersAPI/k8s/secret.yaml"
-kubectl apply -f "${PARENT}/FCG-CatalogAPI/k8s/secret.yaml"
-kubectl apply -f "${PARENT}/FCG-PaymentsAPI/k8s/secret.yaml"
+for file in "${SECRET_FILES[@]}"; do
+  kubectl apply -f "$file"
+done
 echo ">>> Secrets applied"
