@@ -5,17 +5,15 @@ meta {
 }
 
 get {
-  url: {{catalogUrl}}/search
+  url: {{catalogUrl}}/search?q=Cyber
   body: none
   auth: none
 }
 
 params:query {
-  q: Cybr FIAP
-  limit: 10
+  q: Cyber
 }
 
 assert {
   res.status: eq 200
 }
-
