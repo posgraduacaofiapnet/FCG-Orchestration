@@ -1,12 +1,12 @@
 # Validação e evidências da Fase 4
 
-Este é um procedimento para executar e registrar resultados. Etapas descritas aqui não significam testes já realizados. Usar ambiente de teste para criar usuários, jogos, pedidos e avaliações; os scripts completos geram dados e podem recriar containers.
+Procedimento para executar e registrar resultados. A seção **Registro cloud (11/11/2026)** documenta o que já foi comprovado no EKS.
+
+Não copiar credenciais, tokens JWT, kubeconfig ou conteúdo de Secrets para o relatório ou capturas.
 
 ## Pré-requisitos locais
 
-Clonar como pastas irmãs UsersAPI, CatalogAPI, PaymentsAPI, Orchestration, Outbox Processor e Notifications Lambda. Os dois últimos não estavam disponíveis na pasta desta revisão. Instalar .NET 10, Docker com Compose e PowerShell; Kubernetes exige `kubectl` e contexto previamente configurado. O Compose precisa suportar `!reset` e `!override` para o overlay híbrido.
-
-Os comandos seguintes partem da pasta que contém os repositórios, salvo indicação diferente. Conferir as configurações antes de executar. Não copiar credenciais para o relatório ou capturas.
+Clonar como pastas irmãs UsersAPI, CatalogAPI, PaymentsAPI, Orchestration (e, para a stack Compose completa, Outbox Processor e Notifications Lambda). Instalar .NET 10, Docker Compose, `kubectl`, AWS CLI e (opcional) Bruno / Node para o runner da coleção.
 
 ## Testes automatizados
 
@@ -16,7 +16,7 @@ dotnet test ./FCG-CatalogAPI/tests/CatalogAPI.UnitTests/CatalogAPI.UnitTests.csp
 dotnet test ./FCG-PaymentsAPI/tests/PaymentsAPI.UnitTests/PaymentsAPI.UnitTests.csproj --configuration Release
 ```
 
-Para executar o teste real de MongoDB, com um Mongo local dedicado a testes já iniciado:
+Para o teste real de MongoDB:
 
 ```powershell
 $env:FCG_TEST_MONGO_CONNECTION = 'mongodb://localhost:27017'
@@ -24,13 +24,11 @@ dotnet test ./FCG-CatalogAPI/tests/CatalogAPI.UnitTests/CatalogAPI.UnitTests.csp
 Remove-Item Env:FCG_TEST_MONGO_CONNECTION
 ```
 
-Esse teste cria um banco com nome aleatório, valida índice/inserção/ordenação e remove somente esse banco ao terminar. Não configurado o ambiente, o teste é ignorado.
-
-Registro da execução local de 10/11/2026: UsersAPI 16 aprovados; CatalogAPI 36 aprovados e 1 ignorado (MongoDB sem conexão de teste). PaymentsAPI não foi executada nessa revisão. O restore apontou NU1902/NU1903 em `System.Security.Cryptography.Pkcs` 9.0.4; registrar a resolução quando aplicada.
+Registro local anterior (10/11/2026): UsersAPI 16 aprovados; CatalogAPI 36 aprovados e 1 ignorado (Mongo sem conexão).
 
 ## Stack local completa
 
-Na raiz de `FCG-Orchestration`, após disponibilizar todos os repositórios:
+Na raiz de `FCG-Orchestration`:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ./start-local.ps1
@@ -38,62 +36,77 @@ docker compose ps
 powershell -NoProfile -ExecutionPolicy Bypass -File ./test-apis.ps1
 ```
 
-`start-local.ps1` compila/empacota a Lambda e executa `docker compose up --build --force-recreate -d`. A alternativa `test-apis.ps1 -StartDocker` prepara e testa a stack. Não executar os dois caminhos de preparação sem necessidade. Subir apenas `docker compose up --build` antes de gerar o pacote da Lambda pode deixar o LocalStack sem o artefato esperado.
+Alternativas HTTP:
 
-Para Postman, importar `postman/FCG-Phase3.postman_collection.json` e executar na ordem. O nome histórico foi mantido: a coleção cobre JWT, catálogo, cache, compra, avaliações e status de notificações. Ela ainda não cobre a busca da branch não integrada. Bruno oferece requisições em `bruno/`, com ambiente `Docker`.
+- `./test.sh` — regressão via Kong local (`localhost:8000`), inclui outbox health nas portas diretas
+- Bruno ambiente `Docker`
+- Postman: `postman/FCG-Phase3.postman_collection.json`
+
+## Regressão cloud (Kong / EKS)
+
+Com o cluster no ar e o DNS do Load Balancer em `bruno/environments/AWS.bru`:
+
+```bash
+./test.sh --aws
+./bruno/run-regression.sh AWS
+```
+
+Cobertura: health Users/Catalog/Payments, register/login, CRUD de jogos, soft delete, reindex + `/search`, purchase, library, reviews.
 
 ## Evidência de NoSQL
 
-1. Criar um jogo com token `Admin` e registrar seu ID.
-2. Com token de usuário, enviar `POST /api/games/{id}/reviews` com `rating` entre 1 e 5 e `comment` não vazio, até 500 caracteres.
-3. Consultar `GET /api/games/{id}/reviews` e conferir autor, jogo, nota e comentário.
-4. Conferir o documento na collection `reviews` do banco configurado em `Mongo__Database` e o índice por `gameId`.
-5. Registrar status HTTP, documento sem dados pessoais desnecessários e revisão do código executado. Após configurar persistência, verificar recuperação dos dados em reinício controlado.
+1. Criar jogo (Admin) e registrar ID.
+2. Após compra na biblioteca, `POST /api/games/{id}/reviews` e `GET /api/games/{id}/reviews`.
+3. Conferir collection `reviews` no Mongo (`Mongo__Database=fcg_catalog`) e índice por `gameId`.
 
 ## Evidência de cache e desempenho
 
-Confirmar `ConnectionStrings__Redis` na aplicação. O fallback de memória em um processo não comprova cache distribuído.
+Confirmar `ConnectionStrings__Redis=redis:6379`. Medir listagem fria vs aquecida e registrar abaixo.
 
-1. Criar/editar um jogo para invalidar a listagem; executar a mesma consulta paginada duas vezes.
-2. Conferir `Cache miss` e `Cache hit` nos logs do CatalogAPI e chaves com prefixo `fcg:` no Redis. Não usar `FLUSHALL` em banco compartilhado.
-3. Medir várias repetições em condições iguais, identificando consultas frias e aquecidas; manter gateway, parâmetros, volume de dados e concorrência iguais.
-4. Separar aquecimento de aplicação/conexões do efeito do cache. Registrar latências, quantidade de amostras e mediana/p95 quando houver amostra suficiente. Duas requisições isoladas não provam ganho consistente.
-5. Criar, editar e desativar jogo, verificando que a próxima listagem reflete a mudança.
-
-| Data / ambiente / revisão | Consulta e volume de dados | Amostras | Sem hit (ms) | Com hit (ms) | Evidência Redis/logs |
+| Data / ambiente / revisão | Consulta e volume | Amostras | Sem hit (ms) | Com hit (ms) | Evidência Redis/logs |
 |---|---|---|---|---|---|
-| A preencher após medição | A preencher | A preencher | Não medido | Não medido | A anexar |
+| A preencher após medição | GET `/api/games?page=1&pageSize=10` | A preencher | Não medido | Não medido | A anexar |
 
 ## Evidência de busca
 
-Executar somente depois de integrar a busca na revisão entregue e configurar Elasticsearch/OpenSearch gerenciado:
-
-1. Criar um jogo e localizá-lo em `/search?q=...` sem consulta textual direta ao SQL.
-2. Consultar com um erro de digitação e conferir resultado relevante.
-3. Criar resultados concorrentes e conferir ordenação por score/relevância.
-4. Editar o título/descrição e verificar atualização do índice; desativar o jogo e verificar que deixa de aparecer.
-5. Validar reindexação e recuperação após indisponibilidade do motor. Registrar o endpoint/serviço gerenciado sem credenciais.
+1. Criar/editar jogo e localizar em `/search?q=...` (resposta com `score`).
+2. Validar fuzzy (ex.: consulta com erro de digitação, se desejado na demo).
+3. Soft-delete e confirmar ausência; `POST /api/games/reindex` e nova busca.
+4. Motor em uso: Elasticsearch **no EKS** (`elasticsearch:9200`), índice `fcg-games` — não é Amazon OpenSearch Service.
 
 ## Evidência cloud e entrega contínua
 
-Preparar o provedor e a pipeline antes de executar este roteiro. Ainda não há workflow de deploy no código examinado.
+1. Provedor AWS, região `us-east-1`, cluster `fcg-eks`, registry ECR `fcg-*-api`.
+2. `kubectl config current-context` → `arn:aws:eks:us-east-1:174302433776:cluster/fcg-eks`
+3. Registrar `kubectl get nodes|deployments|pods|services` (sem Secrets).
+4. Imagens tagueadas com SHA do commit; pipeline: testes → Trivy → push ECR → rolling update EKS.
+5. `kubectl rollout status deployment/users-api` (e catalog/payments) após merge na `master`.
+6. Rollback: redeploy da imagem SHA anterior do ECR (`kubectl set image` / re-run pipeline em commit anterior).
+7. Ver [CICD.md](CICD.md).
 
-1. Registrar provedor, região, cluster gerenciado, registry privado nativo e serviço de busca gerenciado.
-2. Conferir o contexto correto com `kubectl config current-context`; registrar `kubectl get nodes`, `kubectl get deployments`, `kubectl get pods` e `kubectl get services` no namespace adotado.
-3. Conferir imagem/tag/digest em execução e URL pública do gateway. Não coletar conteúdo de Secrets, tokens ou kubeconfig.
-4. Fazer uma alteração identificável de comportamento, passar pelos testes e integrar à branch principal (`master` neste projeto).
-5. Registrar a execução da pipeline: testes, imagem versionada, push ao registry e deploy automático no cluster.
-6. Acompanhar `kubectl rollout status deployment/users-api` e/ou `deployment/catalog-api`, acrescentando `-n` com o namespace correto quando necessário.
-7. Durante o rollout, enviar requisições contínuas e registrar códigos HTTP/latência. Conferir réplicas prontas e comportamento novo na URL pública.
-8. Registrar o procedimento de rollback e a versão anterior disponível. Reexecutar testes funcionais após o deploy.
+## Registro cloud (11/11/2026)
 
-O nome `docker-compose.production.yml` não substitui essas evidências: esse overlay executa componentes localmente com notificações na AWS.
+| Verificação | Resultado |
+|---|---|
+| EKS `fcg-eks` 1.35 ACTIVE, 2 nós Ready | OK |
+| Deployments: users/catalog/payments 2/2; kong, redis, mongo, sqlserver, rabbitmq, elasticsearch 1/1 | OK |
+| Kong LB público respondendo `/health/users|catalog|payments` | OK (`Healthy`) |
+| `/search?q=Cyber` retorna jogos com `score` | OK |
+| `./test.sh --aws` | OK (12 checks, 0 falhas) |
+| `./bruno/run-regression.sh AWS` | OK (17/17 assertions) |
+| Pipeline Users `e936e82` | [sucesso](https://github.com/posgraduacaofiapnet/FCG-UsersAPI/actions/runs/42944332200) |
+| Pipeline Catalog `43a8b59` | [sucesso](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI/actions/runs/42944627944) |
+| Pipeline Payments `6e8511b` | [sucesso](https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI/actions/runs/42944651919) |
+
+URL pública (sem path secreto):
+
+`http://a552424fe85074122b9a67db27f844d5-1958877460.us-east-1.elb.amazonaws.com`
 
 ## Fechamento da documentação
 
-- [ ] Atualizar a [matriz](FASE4.md) apenas com resultados comprovados.
-- [ ] Preencher grupo, integrantes e Discord nos dois formatos do relatório.
-- [ ] Registrar URLs públicas, revisão entregue e links de evidências sem segredos.
-- [ ] Publicar as alterações documentais e conferir acesso do avaliador aos repositórios.
-- [ ] Completar o campo de link do vídeo quando ele existir; produção do vídeo fora desta tarefa.
-- [ ] Revisar o relatório final para remover campos “a preencher” antes da submissão.
+- [x] Atualizar a [matriz](FASE4.md) com resultados comprovados em nuvem.
+- [ ] Preencher grupo, integrantes e Discord no relatório.
+- [x] Registrar URLs públicas, commits e links de pipelines sem segredos.
+- [ ] Publicar este pacote documental na `master` e conferir acesso do avaliador.
+- [ ] Completar o campo de link do vídeo quando existir.
+- [ ] Revisar o relatório final para remover campos “a preencher” de identificação antes da submissão.

@@ -2,8 +2,8 @@
 
 **Projeto:** FIAP Cloud Games (FCG)  
 **Curso:** Pós-graduação FIAP - .NET  
-**Revisão documental:** 10/11/2026  
-**Situação:** rascunho para completar identificação, evidências e links finais. Não submeter com campos pendentes.
+**Revisão documental:** 11/11/2026  
+**Situação:** ambiente cloud e CI/CD comprovados; **identificação do grupo e link do vídeo** ainda pendentes antes da submissão formal.
 
 ## Identificação do grupo
 
@@ -18,51 +18,53 @@
 - [Documentação principal](https://github.com/posgraduacaofiapnet/FCG-Orchestration/blob/master/README.md)
 - [Escopo e matriz da Fase 4](https://github.com/posgraduacaofiapnet/FCG-Orchestration/blob/master/docs/FASE4.md)
 - [Arquitetura](https://github.com/posgraduacaofiapnet/FCG-Orchestration/blob/master/docs/ARQUITETURA.md)
+- [CI/CD](https://github.com/posgraduacaofiapnet/FCG-Orchestration/blob/master/docs/CICD.md)
 - [Validação e evidências](https://github.com/posgraduacaofiapnet/FCG-Orchestration/blob/master/docs/VALIDACAO.md)
-
-Os caminhos `docs/` acima correspondem aos arquivos preparados localmente nesta revisão. Seus links remotos ficam disponíveis após commit e publicação na `master`. Conferir acesso do avaliador antes da entrega.
 
 ## Repositórios da solução
 
 | Repositório | Papel |
 |---|---|
 | [FCG-UsersAPI](https://github.com/posgraduacaofiapnet/FCG-UsersAPI) | Cadastro, JWT e outbox de usuários |
-| [FCG-CatalogAPI](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI) | Catálogo, compra, biblioteca, Redis e avaliações MongoDB |
+| [FCG-CatalogAPI](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI) | Catálogo, compra, biblioteca, Redis, MongoDB e busca Elasticsearch |
 | [FCG-PaymentsAPI](https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI) | Pagamentos simulados via RabbitMQ |
-| [FCG-Orchestration](https://github.com/posgraduacaofiapnet/FCG-Orchestration) | Infraestrutura, execução, testes e documentação central |
-| [FCG-Outbox-Processor](https://github.com/posgraduacaofiapnet/FCG-Outbox-Processor) | Publicação de notificações SQL/SQS; confirmar acesso e revisão, não clonado nesta revisão |
-| [FCG-Notifications-Lambda](https://github.com/posgraduacaofiapnet/FCG-Notifications-Lambda) | Notificações serverless; confirmar acesso e revisão, não clonado nesta revisão |
-
-Referências históricas, fora do fluxo atual: [FCG-NotificationsAPI](https://github.com/posgraduacaofiapnet/FCG-NotificationsAPI) e [FCG-Tech-Challenge](https://github.com/posgraduacaofiapnet/FCG-Tech-Challenge).
+| [FCG-Orchestration](https://github.com/posgraduacaofiapnet/FCG-Orchestration) | Infraestrutura EKS/Kong, regressão Bruno/`test.sh`, documentação |
+| [FCG-Outbox-Processor](https://github.com/posgraduacaofiapnet/FCG-Outbox-Processor) | Publicação de notificações SQL → SQS |
+| [FCG-Notifications-Lambda](https://github.com/posgraduacaofiapnet/FCG-Notifications-Lambda) | Notificações serverless |
 
 ## Síntese técnica
 
-A solução usa microsserviços .NET 10, SQL Server, RabbitMQ/MassTransit, outbox transacional e notificações por SQS/Lambda. O CatalogAPI mantém avaliações no MongoDB com driver oficial e usa Redis para cache da listagem de jogos. Kong centraliza o acesso HTTP, com autorização também aplicada nas APIs. Prometheus e Grafana compõem o monitoramento disponível.
+Microsserviços .NET 10 atrás do Kong, SQL Server, RabbitMQ/MassTransit, outbox transacional e notificações SQS/Lambda. CatalogAPI usa MongoDB (avaliações), Redis (cache da listagem) e Elasticsearch (fuzzy `/search` com score).
 
-UsersAPI e CatalogAPI possuem GitHub Actions com testes e publicação de imagem no GHCR, atualmente somente com tag `latest`. O deploy automático no cluster e o registry privado nativo da nuvem ainda não estão implementados nos workflows examinados. A busca Elasticsearch existe em branches `feature/elasticsearch`, fora da `master`, e depende de integração, validação e serviço gerenciado.
+**CI/CD:** GitHub Actions (OIDC) → testes → Trivy → Amazon ECR (tag = SHA) → rolling update no Amazon EKS (`maxUnavailable: 0`). Pipeline aplicada a Users, Catalog e Payments.
 
-Persistem pendências de credenciais fixas, demonstração de cluster gerenciado, rollout sem indisponibilidade e medição do ganho de cache. Este texto deve ser atualizado conforme a implementação final; não representa declaração de conclusão integral da Fase 4.
+**Busca:** integrada na `master` do CatalogAPI; motor Elasticsearch executando **no cluster EKS** (não Amazon OpenSearch Service). Validado com reindex + `/search` no Load Balancer público.
+
+Pendências conscientes: preenchimento do grupo no relatório, link do vídeo, medição numérica opcional de latência Redis, e PVC/persistência de Mongo/Redis se exigidos com maior rigor.
 
 ## Ambiente e evidências finais
 
 | Informação | Valor |
 |---|---|
-| Provedor, região e cluster Kubernetes gerenciado | A PREENCHER / comprovar |
-| Registry privado nativo da nuvem | A PREENCHER / configurar |
-| Elasticsearch/OpenSearch gerenciado | A PREENCHER / configurar |
-| URL pública da aplicação | A PREENCHER / validar |
-| Commit/tag entregue por repositório | A PREENCHER na revisão final |
-| Execução da pipeline com deploy automático | A PREENCHER após implementar e executar |
-| Evidência de rollout sem indisponibilidade | A PREENCHER após validar |
-| Evidência de MongoDB e busca fuzzy | A PREENCHER após validar |
-| Medições de cache | A PREENCHER após medir |
-
-Validação local de 10/11/2026: UsersAPI, 16 testes aprovados; CatalogAPI, 36 aprovados e 1 ignorado por falta de configuração de conexão MongoDB. Stack completa e nuvem não executadas nesta revisão. O restore apontou avisos NU1902/NU1903 para `System.Security.Cryptography.Pkcs` 9.0.4.
+| Provedor, região e cluster | AWS, `us-east-1`, EKS `fcg-eks` (Kubernetes **1.35**, ACTIVE) |
+| Registry privado nativo | Amazon ECR `fcg-users-api`, `fcg-catalog-api`, `fcg-payments-api` |
+| Elasticsearch | Deployment in-cluster `elasticsearch:9200`, índice `fcg-games` |
+| URL pública | `http://a552424fe85074122b9a67db27f844d5-1958877460.us-east-1.elb.amazonaws.com` |
+| Commits (`master`) | Users `e936e82` · Catalog `43a8b59` · Payments `6e8511b` · Orchestration `329e41a` |
+| Pipeline com deploy | [Users](https://github.com/posgraduacaofiapnet/FCG-UsersAPI/actions/runs/42944332200) · [Catalog](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI/actions/runs/42944627944) · [Payments](https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI/actions/runs/42944651919) |
+| Rollout | Deployments 2 réplicas; `maxUnavailable: 0`; imagens SHA acima em execução |
+| MongoDB + busca fuzzy | Reviews via Bruno/`test.sh --aws`; `/search?q=Cyber` retorna jogos com `score` |
+| Regressão | `./test.sh --aws` OK; `./bruno/run-regression.sh AWS` 17/17 |
+| Medições de cache | Ainda a preencher (hit/miss) |
 
 ## Link do vídeo
 
-**YouTube ou Drive:** A PREENCHER PELO GRUPO quando disponível. O enunciado limita a duração a 25 minutos. Preparação e gravação não fazem parte desta atualização documental.
+**YouTube ou Drive:** A PREENCHER PELO GRUPO quando disponível (limite 25 minutos no enunciado).
 
 ## Conferência para submissão
 
-Preencher identificação, publicar a documentação, conferir permissões de acesso e atualizar a situação técnica com evidências reais. A versão TXT correspondente é [RELATORIO-ENTREGA.txt](RELATORIO-ENTREGA.txt); manter ambos sincronizados ao completar os campos.
+1. Preencher identificação do grupo e Discord.
+2. Publicar esta documentação na `master` e confirmar acesso do avaliador aos repositórios.
+3. Anexar capturas de Actions / `kubectl get` se solicitado (sem Secrets).
+4. Manter [RELATORIO-ENTREGA.txt](RELATORIO-ENTREGA.txt) sincronizado.
+5. Após a avaliação, desligar o cluster para conter custos (`docs/CICD.md`).
