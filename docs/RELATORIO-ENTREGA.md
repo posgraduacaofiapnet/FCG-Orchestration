@@ -1,9 +1,10 @@
 # Relatório de entrega - Tech Challenge Fase 4
 
-**Projeto:** FIAP Cloud Games (FCG)  
-**Curso:** Pós-graduação FIAP - .NET  
-**Revisão documental:** 11/11/2026  
-**Situação:** ambiente cloud e CI/CD comprovados; **identificação do grupo e link do vídeo** ainda pendentes antes da submissão formal.
+- **Projeto:** FIAP Cloud Games (FCG)
+- **Curso:** Pós-graduação FIAP - .NET
+- **Revisão documental:** 16/11/2026
+
+**Situação:** implementação revisada e registros cloud/CI/CD de 11/11 preservados; ambiente não revalidado nesta tarefa. Há pendências técnicas e de evidência, além de identificação do grupo e link do vídeo.
 
 ## Identificação do grupo
 
@@ -36,13 +37,20 @@
 
 Microsserviços .NET 10 atrás do Kong, SQL Server, RabbitMQ/MassTransit, outbox transacional e notificações SQS/Lambda. CatalogAPI usa MongoDB (avaliações), Redis (cache da listagem) e Elasticsearch (fuzzy `/search` com score).
 
-**CI/CD:** GitHub Actions (OIDC) → testes → Trivy → Amazon ECR (tag = SHA) → rolling update no Amazon EKS (`maxUnavailable: 0`). Pipeline aplicada a Users, Catalog e Payments.
+**CI/CD:** GitHub Actions (OIDC) → testes → build/push Amazon ECR (tags SHA e latest) → Trivy não bloqueante → rolling update no EKS (`maxUnavailable: 0`). Pipeline definida para Users, Catalog e Payments.
 
 **Busca:** integrada na `master` do CatalogAPI; motor Elasticsearch executando **no cluster EKS** (não Amazon OpenSearch Service). Validado com reindex + `/search` no Load Balancer público.
 
-Pendências conscientes: preenchimento do grupo no relatório, link do vídeo, medição numérica opcional de latência Redis, e PVC/persistência de Mongo/Redis se exigidos com maior rigor.
+Pendências: identificação do grupo e link do vídeo; evidência de ganho do Redis, busca com erro
+de digitação/relevância e tráfego contínuo durante rollout; motor de busca em serviço gerenciado
+ou confirmação da alternativa in-cluster com a disciplina; remoção completa de credenciais fixas
+remanescentes. Os manifests sem PVC também têm limitação de persistência/recuperação.
 
-## Ambiente e evidências finais
+## Ambiente e evidências registrados em 11/11/2026
+
+Registros históricos importados da documentação anterior, não repetidos nesta revisão. Os
+commits abaixo identificam aquela evidência; Catalog `36080e0` e Orchestration `0884f4d` são as
+revisões locais posteriores examinadas em 16/11, não uma declaração de versão hoje implantada.
 
 | Informação | Valor |
 |---|---|
@@ -50,10 +58,10 @@ Pendências conscientes: preenchimento do grupo no relatório, link do vídeo, m
 | Registry privado nativo | Amazon ECR `fcg-users-api`, `fcg-catalog-api`, `fcg-payments-api` |
 | Elasticsearch | Deployment in-cluster `elasticsearch:9200`, índice `fcg-games` |
 | URL pública | `http://a552424fe85074122b9a67db27f844d5-1958877460.us-east-1.elb.amazonaws.com` |
-| Commits (`master`) | Users `e936e82` · Catalog `43a8b59` · Payments `6e8511b` · Orchestration `329e41a` |
+| Commits do registro histórico | Users `e936e82` · Catalog `43a8b59` · Payments `6e8511b` · Orchestration `329e41a` |
 | Pipeline com deploy | [Users](https://github.com/posgraduacaofiapnet/FCG-UsersAPI/actions/runs/42944332200) · [Catalog](https://github.com/posgraduacaofiapnet/FCG-CatalogAPI/actions/runs/42944627944) · [Payments](https://github.com/posgraduacaofiapnet/FCG-PaymentsAPI/actions/runs/42944651919) |
 | Rollout | Deployments 2 réplicas; `maxUnavailable: 0`; imagens SHA acima em execução |
-| MongoDB + busca fuzzy | Reviews via Bruno/`test.sh --aws`; `/search?q=Cyber` retorna jogos com `score` |
+| MongoDB + busca | Reviews via Bruno/`test.sh --aws`; `/search?q=Cyber` retorna jogos com `score`. Teste com erro de digitação ainda a anexar. |
 | Regressão | `./test.sh --aws` OK; `./bruno/run-regression.sh AWS` 17/17 |
 | Medições de cache | Ainda a preencher (hit/miss) |
 
@@ -66,5 +74,7 @@ Pendências conscientes: preenchimento do grupo no relatório, link do vídeo, m
 1. Preencher identificação do grupo e Discord.
 2. Publicar esta documentação na `master` e confirmar acesso do avaliador aos repositórios.
 3. Anexar capturas de Actions / `kubectl get` se solicitado (sem Secrets).
+   Completar também as evidências e pendências técnicas da [matriz](FASE4.md), sem apresentar
+   ganho de cache ou busca gerenciada como opcionais.
 4. Manter [RELATORIO-ENTREGA.txt](RELATORIO-ENTREGA.txt) sincronizado.
 5. Após a avaliação, desligar o cluster para conter custos (`docs/CICD.md`).

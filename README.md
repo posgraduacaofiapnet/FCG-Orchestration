@@ -1,7 +1,7 @@
-# FCG Orchestration - preparação da Fase 4
+# FCG Orchestration - Fase 4
 
 Infraestrutura local e Kubernetes do FIAP Cloud Games. A solução usa Kong como gateway, SQL Server,
-RabbitMQ, Redis, MongoDB, Prometheus/Grafana, dois processos do worker genérico de outbox e uma
+RabbitMQ, Redis, MongoDB, Elasticsearch, Prometheus/Grafana, dois processos do worker genérico de outbox e uma
 Lambda acionada por SQS.
 
 ## Documentação da Fase 4
@@ -12,15 +12,17 @@ híbrido com AWS não comprovam, por si, uma implantação em Kubernetes gerenci
 
 - [Requisitos, situação e pendências da Fase 4](docs/FASE4.md)
 - [Arquitetura, fluxos e persistência poliglota](docs/ARQUITETURA.md)
+- [CI/CD, provisionamento ECR/EKS e aplicação de Secrets](docs/CICD.md)
 - [Procedimentos de validação e evidências](docs/VALIDACAO.md)
 - [Relatório de entrega em Markdown](docs/RELATORIO-ENTREGA.md)
 - [Relatório de entrega em TXT](docs/RELATORIO-ENTREGA.txt)
 
-Revisão de 10/11/2026: MongoDB e Redis estão integrados ao CatalogAPI na `master`. A busca está
-nas branches `feature/elasticsearch` de CatalogAPI e Orchestration, ainda fora da principal.
-As pipelines de UsersAPI e CatalogAPI testam e publicam imagens `latest` no GHCR, sem deploy no
-cluster. Registry nativo da nuvem, tags versionadas, segredos sem valores fixos, serviço de busca
-gerenciado e execução cloud ainda precisam ser concluídos ou comprovados.
+Revisão documental de 16/11/2026: MongoDB, Redis e busca Elasticsearch estão na `master`.
+As pipelines de UsersAPI, CatalogAPI e PaymentsAPI publicam no ECR com SHA e `latest` e fazem
+rollout no EKS via OIDC, com Trivy não bloqueante após a publicação. A documentação registra
+execução cloud em 11/11/2026; o ambiente não foi consultado novamente nesta revisão.
+Permanecem pendentes a exigência de motor de busca gerenciado (o atual roda no próprio cluster),
+a remoção completa de credenciais fixas e as evidências de ganho de cache/continuidade durante rollout.
 
 ## Repositórios lado a lado
 
@@ -41,7 +43,8 @@ Sem eles, os contextos de build dos workers e o empacotamento da Lambda não fic
 
 Pré-requisitos: Git, SDK .NET 10, Docker com Compose e PowerShell para os scripts. O modo híbrido
 precisa de uma versão do Compose que aceite `!reset` e `!override`. Kubernetes exige `kubectl`,
-contexto configurado e infraestrutura previamente preparada; os arquivos locais não criam o cluster cloud.
+contexto configurado e infraestrutura preparada. Os scripts `provision-cicd.sh` e `provision-eks.sh`
+preparam ECR/IAM/GitHub e EKS; exigem Bash e ferramentas próprias, conforme [CICD.md](docs/CICD.md).
 
 ## Comunicação
 
@@ -104,10 +107,17 @@ kubectl apply -k k8s
 kubectl wait --for=condition=complete job/fcg-database-init --timeout=180s
 ```
 
+Antes desses comandos, preparar e aplicar os Secrets reais com `scripts/apply-k8s-secrets.sh`,
+conforme o guia de CI/CD. Os arquivos `*.example.yaml` são modelos e não devem ser aplicados.
+
 Esses comandos partem da raiz deste repositório e aplicam somente os recursos listados em
 `k8s/kustomization.yaml`. Gateway, monitoramento, APIs e workers não são incluídos automaticamente
 por esse comando. A Lambda também tem implantação separada. Conferir o contexto/namespace antes
 de aplicar e configurar as credenciais conforme a política do ambiente.
+
+Elasticsearch também está no Kustomize atual. Aplicar as APIs pelo script
+`scripts/apply-api-manifests.sh`, que seleciona ConfigMaps, Services e Deployments e exclui exemplos
+de Secrets. Não aplicar diretórios inteiros de manifests das APIs.
 
 Os deployments das APIs possuem `initContainer` adicional, portanto o container da aplicação não
 inicia sem o ConfigMap dos scripts e sem a aplicação bem-sucedida do seu schema.
@@ -160,6 +170,11 @@ nesse arquivo, portanto o modo local não lê nem depende das credenciais AWS do
 
 ### Imagens publicadas com AWS real
 
+O overlay legado ainda referencia imagens `latest` do GHCR; as pipelines atuais de Users/Catalog/Payments
+publicam no ECR e não atualizam mais essas referências GHCR. Antes de usar esse modo, conferir a
+versão e disponibilidade das imagens; ele pode executar uma revisão antiga. Para a implantação
+atual, seguir [CICD.md](docs/CICD.md).
+
 Use o overlay de produção para executar as imagens `latest` publicadas no GHCR e enviar os eventos de
 notificação ao SQS real da AWS. Bancos, Redis, RabbitMQ, Kong e monitoramento continuam locais; o
 LocalStack não é iniciado. A Lambda implantada na AWS deve estar associada à fila informada.
@@ -189,6 +204,9 @@ versionado como referência das nomenclaturas esperadas.
 
 O nome do arquivo foi preservado para compatibilidade. A coleção continua útil como validação
 funcional da base da Fase 4, mas não comprova busca avançada, desempenho ou deploy cloud.
+Bruno possui a requisição de busca e ambientes `Docker`/`AWS`; `test.sh --aws` inclui reindexação
+e busca. Essas chamadas devem ser complementadas por cenário com erro de digitação e medições
+de desempenho, conforme [VALIDACAO.md](docs/VALIDACAO.md).
 
 Importe `postman/FCG-Phase3.postman_collection.json` e execute a collection completa pelo Collection
 Runner. Todas as chamadas externas de Users e Catalog usam o Kong em `http://localhost:8000`.

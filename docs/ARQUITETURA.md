@@ -1,6 +1,9 @@
 # Arquitetura do FCG para a Fase 4
 
-Situação documentada em 11/11/2026, conforme a `master` e a execução no Amazon EKS `fcg-eks` (`us-east-1`). A arquitetura mantém os fluxos de pagamento da Fase 2 e a evolução de notificações da Fase 3, com os requisitos de nuvem/CI/CD/busca da Fase 4 em operação.
+Revisão documental em 16/11/2026 conforme a `master`, preservando o registro de execução de
+11/11/2026 no Amazon EKS `fcg-eks` (`us-east-1`). Esta revisão não consultou o ambiente ao vivo.
+A arquitetura mantém os fluxos de pagamento da Fase 2 e as notificações da Fase 3; a matriz
+separa implementação, registros históricos e requisitos ainda pendentes.
 
 ## Componentes e responsabilidades
 
@@ -71,7 +74,13 @@ As tabelas `messaging.InboxState`, `messaging.OutboxMessage` e `messaging.Outbox
 
 ## Busca (Elasticsearch)
 
-A CatalogAPI na `master` expõe `/search` (também via Kong) com fuzzy search, score de relevância e sincronização/reindexação de jogos. O índice `fcg-games` fica no Elasticsearch implantado no EKS (`ConnectionStrings__Elasticsearch=http://elasticsearch:9200`). Isso atende o fluxo funcional de busca no cluster gerenciado; não utiliza Amazon OpenSearch Service como PaaS separado.
+A CatalogAPI na `master` expõe `/search` e `/api/games/search` (também via Kong) com fuzzy search,
+score e sincronização/reindexação de jogos. O índice `fcg-games` fica no Elasticsearch do EKS
+(`ConnectionStrings__Elasticsearch=http://elasticsearch:9200`). O motor é operado pelo grupo em
+Deployment; Kubernetes gerenciado não o transforma em Elasticsearch gerenciado. A exigência de
+serviço de busca gerenciado do enunciado permanece pendente de adequação ou confirmação docente.
+Falhas de sincronização são logadas sem desfazer a alteração SQL; reindexação é necessária para
+recuperar divergências. `POST /api/games/reindex` exige Admin.
 
 ## Infraestrutura disponível e limites
 
@@ -79,6 +88,9 @@ O Compose local usa LocalStack para SQS/Lambda/DynamoDB. O overlay `docker-compo
 
 Em nuvem, o cluster **Amazon EKS** `fcg-eks` hospeda Kong (LoadBalancer), APIs, SQL Server, Redis, MongoDB, RabbitMQ e Elasticsearch. Provisionamento e operação estão em [CICD.md](CICD.md) e nos scripts `scripts/provision-*.sh` / `apply-*.sh`.
 
-As probes `/health` refletem o processo HTTP. MongoDB/Redis/Elasticsearch nos manifests atuais não definem PVC — adequado para demo do desafio; não é HA de produção.
+As probes `/health` refletem o processo HTTP. MongoDB/Redis/Elasticsearch nos manifests atuais
+não definem PVC; a recriação do Pod pode perder dados. Isso é uma limitação de persistência e
+recuperação, não uma garantia de adequação da entrega. A demonstração de continuidade de tráfego
+durante rollout também precisa de evidência além das probes e `maxUnavailable: 0`.
 
 As pipelines publicam imagens versionadas por SHA no **Amazon ECR** e fazem rolling update no EKS via OIDC. Detalhes e matriz de requisitos: [FASE4.md](FASE4.md).
