@@ -121,7 +121,7 @@ busca de `test.sh` e Bruno consultam `Cyber`, sem erro de digitação.
 ## Fechamento da documentação
 
 - [x] Atualizar a [matriz](FASE4.md) com resultados comprovados em nuvem.
-- [ ] Preencher grupo, integrantes e Discord no relatório.
+- [x] Preencher Grupo 05, integrantes, RM e Discord no relatório, conforme o modelo da Fase 3 fornecido pelo grupo.
 - [x] Registrar URLs públicas, commits e links de pipelines sem segredos.
 - [ ] Publicar esta revisão documental de 16/11 e conferir acesso do avaliador. A base de 11/11 já está versionada na `master`.
 - [ ] Anexar ganho de cache, fuzzy search, relevância e tráfego contínuo durante rollout.

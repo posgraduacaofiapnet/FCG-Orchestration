@@ -34,7 +34,7 @@ Código implementado, configuração disponível e evidência de funcionamento e
 | Security scan | Trivy no workflow (não bloqueante) | Atendido como scan desejável. |
 | Zero credenciais fixas no código/YAML | Secrets de runtime agora locais e ignorados; modelos com placeholders versionados | Parcial. Persistem valores fixos em appsettings, Compose, Kong e seed/testes. A exigência é explícita; remover valores remanescentes e revisar histórico/credenciais conforme uso. |
 | Código, manifests e pipelines versionados | Repos + `k8s/` + `docs/CICD.md` + scripts `provision-*.sh` / `apply-*.sh` | Atendido. |
-| README detalhado e relatório com identificação/links | Docs + relatório com link da apresentação | Preencher **identificação do grupo** antes da submissão formal; conferir acesso ao vídeo. |
+| README detalhado e relatório com identificação/links | Relatório do Grupo 05 com participantes, RM, Discord, documentação, repositórios e apresentação | Preenchido no formato do relatório anterior do grupo; conferir acesso aos links antes da submissão. |
 
 ## Ambiente cloud registrado (11/11/2026; não revalidado em 16/11)
 
@@ -64,7 +64,7 @@ Pipelines verdes (push `master`): [Users](https://github.com/posgraduacaofiapnet
 
 ## Pendências restantes para submissão
 
-1. Preencher nome do grupo, integrantes e Discord no relatório.
+1. Conferir os dados do Grupo 05 e os links do relatório, preenchidos a partir do modelo de entrega da Fase 3 fornecido pelo grupo.
 2. Demonstrar e registrar o ganho de latência Redis (hit vs miss), sem tratar isso como opcional.
 3. Adequar o motor de busca para serviço gerenciado ou confirmar a alternativa com a disciplina.
 4. Remover credenciais fixas remanescentes do código/configuração; manter apenas modelos sem valores reais.
