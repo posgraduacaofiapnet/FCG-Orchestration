@@ -126,5 +126,5 @@ busca de `test.sh` e Bruno consultam `Cyber`, sem erro de digitação.
 - [ ] Publicar esta revisão documental de 16/11 e conferir acesso do avaliador. A base de 11/11 já está versionada na `master`.
 - [ ] Anexar ganho de cache, fuzzy search, relevância e tráfego contínuo durante rollout.
 - [ ] Resolver ou registrar formalmente a exigência de busca gerenciada e os valores fixos remanescentes.
-- [ ] Completar o campo de link do vídeo quando existir.
+- [x] Incluir no relatório o link da apresentação fornecido pelo grupo: [YouTube](https://www.youtube.com/watch?v=yLbDMeNDyHM). Conteúdo, duração e permissões de acesso não foram conferidos nesta atualização.
 - [ ] Revisar o relatório final para remover campos “a preencher” de identificação antes da submissão.

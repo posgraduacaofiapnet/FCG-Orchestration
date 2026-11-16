@@ -34,7 +34,7 @@ Código implementado, configuração disponível e evidência de funcionamento e
 | Security scan | Trivy no workflow (não bloqueante) | Atendido como scan desejável. |
 | Zero credenciais fixas no código/YAML | Secrets de runtime agora locais e ignorados; modelos com placeholders versionados | Parcial. Persistem valores fixos em appsettings, Compose, Kong e seed/testes. A exigência é explícita; remover valores remanescentes e revisar histórico/credenciais conforme uso. |
 | Código, manifests e pipelines versionados | Repos + `k8s/` + `docs/CICD.md` + scripts `provision-*.sh` / `apply-*.sh` | Atendido. |
-| README detalhado e relatório com identificação/links | Docs + relatório | Preencher **identificação do grupo** e link do vídeo antes da submissão formal. |
+| README detalhado e relatório com identificação/links | Docs + relatório com link da apresentação | Preencher **identificação do grupo** antes da submissão formal; conferir acesso ao vídeo. |
 
 ## Ambiente cloud registrado (11/11/2026; não revalidado em 16/11)
 
@@ -69,6 +69,6 @@ Pipelines verdes (push `master`): [Users](https://github.com/posgraduacaofiapnet
 3. Adequar o motor de busca para serviço gerenciado ou confirmar a alternativa com a disciplina.
 4. Remover credenciais fixas remanescentes do código/configuração; manter apenas modelos sem valores reais.
 5. Anexar busca com erro de digitação, relevância e tráfego contínuo durante rollout.
-6. Conferir a revisão final entregue e os links de evidência; completar o link do vídeo quando existir (fora desta atualização).
+6. Conferir a revisão final entregue e os links de evidência, incluindo acesso à apresentação já informada no relatório.
 7. Avaliar persistência/recuperação dos bancos sem PVC; é uma limitação operacional, não um item expressamente nomeado como PVC no enunciado.
 8. Após a avaliação, considerar a limpeza dos recursos somente quando não forem mais necessários, conforme [CICD.md](CICD.md).

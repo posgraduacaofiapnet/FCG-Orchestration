@@ -4,7 +4,7 @@
 - **Curso:** Pós-graduação FIAP - .NET
 - **Revisão documental:** 16/11/2026
 
-**Situação:** implementação revisada e registros cloud/CI/CD de 11/11 preservados; ambiente não revalidado nesta tarefa. Há pendências técnicas e de evidência, além de identificação do grupo e link do vídeo.
+**Situação:** implementação revisada e registros cloud/CI/CD de 11/11 preservados; ambiente não revalidado nesta tarefa. Link da apresentação informado. Há pendências técnicas e de evidência, além da identificação do grupo.
 
 ## Identificação do grupo
 
@@ -41,7 +41,7 @@ Microsserviços .NET 10 atrás do Kong, SQL Server, RabbitMQ/MassTransit, outbox
 
 **Busca:** integrada na `master` do CatalogAPI; motor Elasticsearch executando **no cluster EKS** (não Amazon OpenSearch Service). Validado com reindex + `/search` no Load Balancer público.
 
-Pendências: identificação do grupo e link do vídeo; evidência de ganho do Redis, busca com erro
+Pendências: identificação do grupo; evidência de ganho do Redis, busca com erro
 de digitação/relevância e tráfego contínuo durante rollout; motor de busca em serviço gerenciado
 ou confirmação da alternativa in-cluster com a disciplina; remoção completa de credenciais fixas
 remanescentes. Os manifests sem PVC também têm limitação de persistência/recuperação.
@@ -67,7 +67,9 @@ revisões locais posteriores examinadas em 16/11, não uma declaração de vers�
 
 ## Link do vídeo
 
-**YouTube ou Drive:** A PREENCHER PELO GRUPO quando disponível (limite 25 minutos no enunciado).
+**Apresentação no YouTube:** [Assistir à apresentação](https://www.youtube.com/watch?v=yLbDMeNDyHM).
+
+Link fornecido pelo grupo; conteúdo e duração não foram conferidos nesta atualização. O limite do enunciado é de 25 minutos.
 
 ## Conferência para submissão
 
